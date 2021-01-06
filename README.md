@@ -1,3 +1,8 @@
+Zero-shot-QBERT
+===============
+Related:
+[Towards Zero-Shot Knowledge Distillation for Natural Language Processing](https://arxiv.org/pdf/2012.15495.pdf)
+
 TinyBERT
 ======== 
 TinyBERT is 7.5x smaller and 9.4x faster on inference than BERT-base and achieves competitive performances in the tasks of natural language understanding. It performs a novel transformer distillation at both the pre-training and task-specific learning stages. The overview of TinyBERT learning is illustrated as follows: 
@@ -156,9 +161,3 @@ python task_distill.py --do_eval \
                        --max_seq_length 128  
                                    
 ```
-
-To Dos
-=========================
-* Evaluate TinyBERT on Chinese tasks.
-* Tiny*: use NEZHA or ALBERT as the teacher in TinyBERT learning.
-* Release better general TinyBERTs.

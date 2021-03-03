@@ -1,6 +1,7 @@
 Zero-shot-QBERT
 ===============
 Related:
+[Adversarial Self-Supervised Data-Free Distillation for Text Classification](https://arxiv.org/pdf/2010.04883.pdf)
 [Towards Zero-Shot Knowledge Distillation for Natural Language Processing](https://arxiv.org/pdf/2012.15495.pdf)
 
 TinyBERT

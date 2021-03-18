@@ -780,7 +780,7 @@ def main():
 
 
         "mnli": {"num_train_epochs": 10, "max_seq_length": 128, "learning_rate": 2e-5, "train_batch_size": 32},
-        "qnli": {"num_train_epochs": 10, "max_seq_length": 128, "learning_rate": 2e-5, "train_batch_size": 32},
+        "qnli": {"num_train_epochs": 10, "max_seq_length": 128, "learning_rate": 2e-5, "train_batch_size": 32, "warmup_proportion": 0.1},
         "sts-b": {"num_train_epochs": 10, "max_seq_length": 128, "learning_rate": 3e-5, "train_batch_size": 16, "weight_decay": 0.1, "eps": 1e-6},
     }
 

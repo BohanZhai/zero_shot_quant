@@ -124,7 +124,7 @@ FINETUNED_MODEL_DIR=f"/rscratch/sheng.s/model/{model}/"
 # general finetuning
 ############################
 # for TASK_NAME in ["SST-2", "RTE",  "QNLI", "MRPC", "QQP", "STS-B", "CoLA", "MNLI"]:
-for TASK_NAME in ["MNLI"]:
+for TASK_NAME in ["QNLI"]:
 # for TASK_NAME in ["STS-B"]:
     command = f''' python run_glue.py \
                 --task_name {TASK_NAME} \
@@ -135,7 +135,7 @@ for TASK_NAME in ["MNLI"]:
                 --train_batch_size 32 \
                 --do_lower_case --seed 1 --gradient_accumulation_steps {gradient_accumulation_steps}'''
 
-    BASH_COMMAND_LIST.append(command)
+    # BASH_COMMAND_LIST.append(command)
 
 
 ############################
@@ -144,9 +144,9 @@ for TASK_NAME in ["MNLI"]:
 # tune weight_bit, group_num for weight quantization
 ############################
 # for TASK_NAME in ["SST-2", "RTE", "MRPC", "QNLI", "QQP", "STS-B", "MNLI", "CoLA"]:
-for TASK_NAME in ["CoLA"]:
+for TASK_NAME in ["SST-2"]:
     for weight_bit in [4, 6, 8]:
-        for group_num in [12, 64, 128]:
+        for group_num in [1, 12, 64]:
             command = f''' python quant_run_glue.py \
                         --task_name {TASK_NAME} \
                         --data_dir {GLUE_DIR}/{TASK_NAME}/ \
@@ -156,9 +156,29 @@ for TASK_NAME in ["CoLA"]:
                         --train_batch_size 32 --quant_group_number {group_num} \
                         --do_lower_case --seed 1 --gradient_accumulation_steps {gradient_accumulation_steps} --weight_bit {weight_bit}'''
 
-        # BASH_COMMAND_LIST.append(command)
-                    
-# ARCH="masked_transformer_iwslt_de_en"
+            # BASH_COMMAND_LIST.append(command)
+
+
+############################
+# quantization aware finetuning on generated dataset
+# add --do_eval means directly apply the post quantization scheme
+# tune weight_bit, group_num for weight quantization
+############################
+# for TASK_NAME in ["SST-2", "RTE", "MRPC", "QNLI", "QQP", "STS-B", "MNLI", "CoLA"]:
+for TASK_NAME in ["CoLA"]:
+    for weight_bit in [6, 8, 4]:
+        for group_num in [1]:
+            for aug_text in ["_gen_ood"]:
+                command = f''' python quant_run_glue.py \
+                            --task_name {TASK_NAME} \
+                            --data_dir {GLUE_DIR}/{TASK_NAME}/ \
+                            --student_model {model}/base_{TASK_NAME} \
+                            --output_dir {model}/q{weight_bit}a8_g{group_num}/{aug_text}/base_{TASK_NAME} \
+                            --learning_rate 2e-5 \
+                            --train_batch_size 32 --quant_group_number {group_num} --aug_train {aug_text} \
+                            --do_lower_case --seed 1 --gradient_accumulation_steps {gradient_accumulation_steps} \
+                            --weight_bit {weight_bit}'''
+                BASH_COMMAND_LIST.append(command)
 
 ############################
 # post quantization, no finetuning
@@ -166,9 +186,9 @@ for TASK_NAME in ["CoLA"]:
 # tune weight_bit, group_num for weight quantization, activation_bit 
 ############################
 for TASK_NAME in ["CoLA"]:
-    for weight_bit in [4, 6, 8]:
+    for weight_bit in [4]:
         for group_num in [1]:
-            for activation_bit in [8]:
+            for activation_bit in [32]:
                 command = f''' python quant_run_glue.py \
                             --task_name {TASK_NAME} \
                             --data_dir {GLUE_DIR}/{TASK_NAME}/ \

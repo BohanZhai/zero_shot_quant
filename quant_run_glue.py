@@ -132,9 +132,9 @@ class MrpcProcessor(DataProcessor):
         return self._create_examples(
             self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
 
-    def get_aug_examples(self, data_dir):
+    def get_aug_examples(self, data_dir, aug_postfix="_aug"):
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train_aug.tsv")), "aug")
+            self._read_tsv(os.path.join(data_dir, f"train{aug_postfix}.tsv")), "aug")
 
     def get_labels(self):
         """See base class."""
@@ -169,9 +169,9 @@ class MnliProcessor(DataProcessor):
             self._read_tsv(os.path.join(data_dir, "dev_matched.tsv")),
             "dev_matched")
 
-    def get_aug_examples(self, data_dir):
+    def get_aug_examples(self, data_dir, aug_postfix="_aug"):
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train_aug.tsv")), "aug")
+            self._read_tsv(os.path.join(data_dir, f"train{aug_postfix}.tsv")), "aug")
 
     def get_labels(self):
         """See base class."""
@@ -215,9 +215,9 @@ class ColaProcessor(DataProcessor):
         return self._create_examples(
             self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
 
-    def get_aug_examples(self, data_dir):
+    def get_aug_examples(self, data_dir, aug_postfix="_aug"):
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train_aug.tsv")), "aug")
+            self._read_tsv(os.path.join(data_dir, f"train{aug_postfix}.tsv")), "aug")
 
     def get_labels(self):
         """See base class."""
@@ -248,9 +248,9 @@ class Sst2Processor(DataProcessor):
         return self._create_examples(
             self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
 
-    def get_aug_examples(self, data_dir):
+    def get_aug_examples(self, data_dir, aug_postfix="_aug"):
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train_aug.tsv")), "aug")
+            self._read_tsv(os.path.join(data_dir, f"train{aug_postfix}.tsv")), "aug")
 
     def get_labels(self):
         """See base class."""
@@ -283,9 +283,9 @@ class StsbProcessor(DataProcessor):
         return self._create_examples(
             self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
 
-    def get_aug_examples(self, data_dir):
+    def get_aug_examples(self, data_dir, aug_postfix="_aug"):
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train_aug.tsv")), "aug")
+            self._read_tsv(os.path.join(data_dir, f"train{aug_postfix}.tsv")), "aug")
 
     def get_labels(self):
         """See base class."""
@@ -319,9 +319,9 @@ class QqpProcessor(DataProcessor):
         return self._create_examples(
             self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
 
-    def get_aug_examples(self, data_dir):
+    def get_aug_examples(self, data_dir, aug_postfix="_aug"):
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train_aug.tsv")), "aug")
+            self._read_tsv(os.path.join(data_dir, f"train{aug_postfix}.tsv")), "aug")
 
     def get_labels(self):
         """See base class."""
@@ -359,9 +359,9 @@ class QnliProcessor(DataProcessor):
             self._read_tsv(os.path.join(data_dir, "dev.tsv")),
             "dev_matched")
 
-    def get_aug_examples(self, data_dir):
+    def get_aug_examples(self, data_dir, aug_postfix="_aug"):
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train_aug.tsv")), "aug")
+            self._read_tsv(os.path.join(data_dir, f"train{aug_postfix}.tsv")), "aug")
 
     def get_labels(self):
         """See base class."""
@@ -395,9 +395,9 @@ class RteProcessor(DataProcessor):
         return self._create_examples(
             self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
 
-    def get_aug_examples(self, data_dir):
+    def get_aug_examples(self, data_dir, aug_postfix="_aug"):
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train_aug.tsv")), "aug")
+            self._read_tsv(os.path.join(data_dir, f"train{aug_postfix}.tsv")), "aug")
 
     def get_labels(self):
         """See base class."""
@@ -739,8 +739,7 @@ def main():
                         default=8,
                         help="Number of bits for weight.")
     # added arguments
-    parser.add_argument('--aug_train',
-                        action='store_true')
+    parser.add_argument('--aug_train', type=str, default='none',)
     parser.add_argument('--eval_step',
                         type=int,
                         default=50)
@@ -784,10 +783,10 @@ def main():
     # intermediate distillation default parameters
     default_params = {
         "cola": {"num_train_epochs": 10, "max_seq_length": 64, "learning_rate": 2e-5, "train_batch_size": 32},
+        "sst-2": {"num_train_epochs": 10, "max_seq_length": 64, "learning_rate": 2e-5, "train_batch_size": 32},
 
         "mnli": {"num_train_epochs": 10, "max_seq_length": 128, "learning_rate": 1e-5, "train_batch_size": 32},
         "mrpc": {"num_train_epochs": 10, "max_seq_length": 128, "learning_rate": 1e-5, "train_batch_size": 32},
-        "sst-2": {"num_train_epochs": 10, "max_seq_length": 64, "learning_rate": 1e-5, "train_batch_size": 32},
         "sts-b": {"num_train_epochs": 10, "max_seq_length": 128, "learning_rate": 2e-5, "train_batch_size": 16},
         "qqp": {"num_train_epochs": 10, "max_seq_length": 128, "learning_rate": 1e-5, "train_batch_size": 32},
         "qnli": {"num_train_epochs": 10, "max_seq_length": 128, "learning_rate": 1e-5, "train_batch_size": 32},
@@ -820,7 +819,7 @@ def main():
         # raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
         if os.path.exists(os.path.join(args.output_dir, "eval_results.txt")):
             os.remove( os.path.join(args.output_dir, "eval_results.txt") )
-        
+
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
@@ -847,10 +846,10 @@ def main():
     tokenizer = BertTokenizer.from_pretrained(args.student_model, do_lower_case=args.do_lower_case)
 
     if not args.do_eval:
-        if not args.aug_train:
+        if args.aug_train == 'none':
             train_examples = processor.get_train_examples(args.data_dir)
         else:
-            train_examples = processor.get_aug_examples(args.data_dir)
+            train_examples = processor.get_aug_examples(args.data_dir, args.aug_train)
         if args.gradient_accumulation_steps < 1:
             raise ValueError("Invalid gradient_accumulation_steps parameter: {}, should be >= 1".format(
                 args.gradient_accumulation_steps))

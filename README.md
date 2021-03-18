@@ -4,6 +4,10 @@ Related:
 [Adversarial Self-Supervised Data-Free Distillation for Text Classification](https://arxiv.org/pdf/2010.04883.pdf)
 [Towards Zero-Shot Knowledge Distillation for Natural Language Processing](https://arxiv.org/pdf/2012.15495.pdf)
 
+baseline:
+[current results](https://docs.google.com/spreadsheets/d/1rOYIBW_Xp-swBwptEPH19yTkWnwvPw3Sfb8aeSLbmWQ/edit?usp=sharing)
+
+
 TinyBERT
 ======== 
 TinyBERT is 7.5x smaller and 9.4x faster on inference than BERT-base and achieves competitive performances in the tasks of natural language understanding. It performs a novel transformer distillation at both the pre-training and task-specific learning stages. The overview of TinyBERT learning is illustrated as follows: 

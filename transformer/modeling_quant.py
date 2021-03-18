@@ -53,7 +53,7 @@ PRETRAINED_MODEL_ARCHIVE_MAP = {
 BERT_CONFIG_NAME = 'bert_config.json'
 TF_WEIGHTS_NAME = 'model.ckpt'
 
-def insert_quant_act_modules(model):
+def insert_quant_act_modules(model, bit=32):
     '''Inserts quantization modules for selected layers
     in a given graph.
     '''
@@ -66,7 +66,7 @@ def insert_quant_act_modules(model):
         if len(layer._modules.items()) > 0:
             insert_quant_act_modules(layer)
         else:
-            model._modules[name] = QuantLinear_Act(layer)
+            model._modules[name] = QuantLinear_Act(layer, bit)
     return model
 
 def load_tf_weights_in_bert(model, tf_checkpoint_path):
@@ -189,9 +189,10 @@ class HeadAttention(nn.Module):
         self.attention_head_size = int(self.hidden_size / self.head_num)
         self.all_head_size = self.num_heads_used * self.attention_head_size
 
-        self.query = QuantLinear(self.hidden_size, self.all_head_size)
-        self.key = QuantLinear(self.hidden_size, self.all_head_size)
-        self.value = QuantLinear(self.hidden_size, self.all_head_size)
+        group_number = config.__dict__.get("quant_group_number", 1)
+        self.query = QuantLinear(self.hidden_size, self.all_head_size, group_number=group_number)
+        self.key = QuantLinear(self.hidden_size, self.all_head_size, group_number=group_number)
+        self.value = QuantLinear(self.hidden_size, self.all_head_size, group_number=group_number)
 
         self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
 
@@ -350,12 +351,13 @@ class BertEmbeddings(nn.Module):
 
     def __init__(self, config):
         super(BertEmbeddings, self).__init__()
+        group_number = config.__dict__.get("quant_group_number", 1)
         self.word_embeddings = QuantEmbedding(
-            config.vocab_size, config.hidden_size, padding_idx=0)
+            config.vocab_size, config.hidden_size, padding_idx=0, group_number=group_number)
         self.position_embeddings = QuantEmbedding(
-            config.max_position_embeddings, config.hidden_size)
+            config.max_position_embeddings, config.hidden_size, group_number=group_number)
         self.token_type_embeddings = QuantEmbedding(
-            config.type_vocab_size, config.hidden_size)
+            config.type_vocab_size, config.hidden_size, group_number=group_number)
 
         # self.LayerNorm is not snake-cased to stick with TensorFlow model variable name and be able to load
         # any TensorFlow checkpoint file
@@ -392,9 +394,11 @@ class BertSelfAttention(nn.Module):
             config.hidden_size / config.num_attention_heads)
         self.all_head_size = self.num_attention_heads * self.attention_head_size
 
-        self.query = QuantLinear(config.hidden_size, self.all_head_size)
-        self.key = QuantLinear(config.hidden_size, self.all_head_size)
-        self.value = QuantLinear(config.hidden_size, self.all_head_size)
+        group_number = config.__dict__.get("quant_group_number", 1)
+
+        self.query = QuantLinear(config.hidden_size, self.all_head_size, group_number=group_number)
+        self.key = QuantLinear(config.hidden_size, self.all_head_size, group_number=group_number)
+        self.value = QuantLinear(config.hidden_size, self.all_head_size, group_number=group_number)
 
         self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
 
@@ -452,7 +456,8 @@ class BertAttention(nn.Module):
 class BertSelfOutput(nn.Module):
     def __init__(self, config):
         super(BertSelfOutput, self).__init__()
-        self.dense = QuantLinear(config.hidden_size, config.hidden_size)
+        group_number = config.__dict__.get("quant_group_number", 1)
+        self.dense = QuantLinear(config.hidden_size, config.hidden_size, group_number=group_number)
         self.LayerNorm = BertLayerNorm(config.hidden_size, eps=1e-12)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
@@ -466,11 +471,13 @@ class BertSelfOutput(nn.Module):
 class BertIntermediate(nn.Module):
     def __init__(self, config, intermediate_size=-1):
         super(BertIntermediate, self).__init__()
+        group_number = config.__dict__.get("quant_group_number", 1)
+
         if intermediate_size < 0:
             self.dense = QuantLinear(
-                config.hidden_size, config.intermediate_size)
+                config.hidden_size, config.intermediate_size, group_number=group_number)
         else:
-            self.dense = QuantLinear(config.hidden_size, intermediate_size)
+            self.dense = QuantLinear(config.hidden_size, intermediate_size, group_number=group_number)
         if isinstance(config.hidden_act, str) or (sys.version_info[0] == 2 and isinstance(config.hidden_act, unicode)):
             self.intermediate_act_fn = ACT2FN[config.hidden_act]
         else:
@@ -485,11 +492,13 @@ class BertIntermediate(nn.Module):
 class BertOutput(nn.Module):
     def __init__(self, config, intermediate_size=-1):
         super(BertOutput, self).__init__()
+        group_number = config.__dict__.get("quant_group_number", 1)
+
         if intermediate_size < 0:
             self.dense = QuantLinear(
-                config.intermediate_size, config.hidden_size)
+                config.intermediate_size, config.hidden_size, group_number=group_number)
         else:
-            self.dense = QuantLinear(intermediate_size, config.hidden_size)
+            self.dense = QuantLinear(intermediate_size, config.hidden_size, group_number=group_number)
         self.LayerNorm = BertLayerNorm(config.hidden_size, eps=1e-12)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
@@ -699,10 +708,17 @@ class BertPreTrainedModel(nn.Module):
         kwargs.pop('from_tf', None)
 
         # Load config
-        config_file = os.path.join(pretrained_model_name_or_path, CONFIG_NAME)
-        config = BertConfig.from_json_file(config_file)
-        logger.info("Model config {}".format(config))
+        # config_file = os.path.join(pretrained_model_name_or_path, CONFIG_NAME)
+        # config = BertConfig.from_json_file(config_file)
+        # logger.info("Model config {}".format(config))
         # Instantiate model.
+        config = kwargs.get('quant_config', None)
+        kwargs.pop('quant_config', None)
+        if config is None:
+            config_file = os.path.join(pretrained_model_name_or_path, CONFIG_NAME)
+            config = BertConfig.from_json_file(config_file)
+
+        logger.info("Model config {}".format(config))
 
         model = cls(config, *inputs, **kwargs)
         if state_dict is None and not from_tf:
@@ -769,7 +785,7 @@ class BertPreTrainedModel(nn.Module):
         return model
 
 
-class BertModel(BertPreTrainedModel):
+class QBertModel(BertPreTrainedModel):
     """BERT model ("Bidirectional Embedding Representations from a Transformer").
 
     Params:
@@ -820,42 +836,46 @@ class BertModel(BertPreTrainedModel):
         self.encoder = BertEncoder(config)
         self.pooler = BertPooler(config)
 
-        
-        if getattr(config, "config_dict") and 'layer_bits' in config.config_dict:
-            config_dict = config.config_dict
+        config_dict = config.__dict__
+        if 'layer_bits' in config_dict:
+            # config_dict = config.config_dict
             layer_bits = config_dict['layer_bits']
             
             layer_requires_grad = config_dict.get('layer_requires_grad', None)
             for module_path, module in self.encoder.named_modules():
                 classname = module.__class__.__name__
-                if classname is "QuantDynaLinear" and module_path in layer_bits:
-                    number_bits = 2
+                if classname is "QuantLinear" and module_path in layer_bits:
+                    number_bits = layer_bits[module_path]
                     module.reset_bits(number_bits)
                     # logger.info(
                     #     f'Reset module_path: {module_path}, number_bits: {number_bits}'
                     # )
-                    print(f'Reset module_path: {module_path}, number_bits: {number_bits}')
+                    group_number = module.group_number
+                    print(f'Reset module_path: {module_path}, number_bits: {number_bits}, group: {group_number}')
                     if layer_requires_grad is not None:
                         for param in module.parameters():
                             param.requires_grad = layer_requires_grad[
                                 module_path]
 
             # activation quantization module
-            if 'quantize_activation' in config_dict and config_dict[
-                    'quantize_activation']:
-                print("activation will be quantized.")
-                self.encoder = insert_quant_act_modules(self.encoder)
+            if 'activation_bits' in config_dict and config_dict[
+                    'activation_bits'] != 32:
+                activation_bits = config_dict['activation_bits']
+                print(f"activation will be quantized to {activation_bits} bits.")
+                self.encoder = insert_quant_act_modules(self.encoder, activation_bits)
 
-            if config_dict.get('emb_bits', None):
+            if config_dict.get('embed_bits', None):
                 logger.info("embeddings' bits will be reset.")
-                emb_bits = config_dict['emb_bits']
+                emb_bits = config_dict['embed_bits']
                 for module_path, module in self.embeddings.named_modules():
                     classname = module.__class__.__name__
+
                     if classname is "QuantEmbedding" and module_path in emb_bits:
                         number_bits = emb_bits[module_path]
                         module.reset_bits(number_bits)
+                        group_number = module.group_number
                         logger.info(
-                        f'Reset module_path: {module_path}, number_bits: {number_bits}'
+                        f'Reset module_path: {module_path}, number_bits: {number_bits}, group: {group_number}'
                         )
 
         self.apply(self.init_bert_weights)
@@ -1170,6 +1190,31 @@ class BertForSentencePairClassification(BertPreTrainedModel):
         else:
             return logits
 
+
+class QBertForSequenceClassification(BertPreTrainedModel):
+    def __init__(self, config, num_labels, fit_size=768):
+        super(QBertForSequenceClassification, self).__init__(config)
+        self.num_labels = num_labels
+        self.bert = QBertModel(config)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.classifier = nn.Linear(config.hidden_size, num_labels)
+        self.fit_dense = nn.Linear(config.hidden_size, fit_size)
+        self.apply(self.init_bert_weights)
+
+    def forward(self, input_ids, token_type_ids=None, attention_mask=None,
+                labels=None, is_student=False):
+
+        sequence_output, att_output, pooled_output = self.bert(input_ids, token_type_ids, attention_mask,
+                                                               output_all_encoded_layers=True, output_att=True)
+
+        logits = self.classifier(torch.relu(pooled_output))
+
+        tmp = []
+        if is_student:
+            for s_id, sequence_layer in enumerate(sequence_output):
+                tmp.append(self.fit_dense(sequence_layer))
+            sequence_output = tmp
+        return logits, att_output, sequence_output
 
 class TinyBertForSequenceClassification(BertPreTrainedModel):
     def __init__(self, config, num_labels, fit_size=768):

@@ -12,8 +12,15 @@ import time
 # Activation Look-Up Table
 # ACT_QUANT_BITS_MAP = {2:5, 3:6, 4:6, 5:8, 6:8, 7:8, 8:8, 32:32}
 
+# ACT_QUANT_BITS_MAP = {1:32, 2:32, 3:32, 4:32, 5:32, 6:32, 7:32, 8:32, 32:32}
+
+# ACT_QUANT_BITS_MAP = {1:16, 2:16, 3:16, 4:16, 5:16, 6:16, 7:16, 8:16, 32:16}
+
 # Activation 8-bit
 ACT_QUANT_BITS_MAP = {1:8, 2:8, 3:8, 4:8, 5:8, 6:8, 7:8, 8:8, 32:8}
+
+# ACT_QUANT_BITS_MAP = {1:6, 2:6, 3:6, 4:6, 5:6, 6:6, 7:6, 8:6, 32:6}
+# ACT_QUANT_BITS_MAP = {1:4, 2:4, 3:4, 4:4, 5:4, 6:4, 7:4, 8:4, 32:4}
 
 
 class QuantEmbedding(_Embedding):
@@ -484,12 +491,12 @@ class QuantLinear(_linear):
 
 
 class QuantLinear_Act(QuantLinear):
-    def __init__(self, quant_linear):
+    def __init__(self, quant_linear, bit=32):
         super(QuantLinear_Act, self).__init__(
             quant_linear.input_size, quant_linear.output_size,
             quant_linear.weight_bit, quant_linear.full_precision_flag,
             quant_linear.quant_mode)
-        self.weight_bit_act = ACT_QUANT_BITS_MAP[self.weight_bit]
+        self.weight_bit_act = bit #ACT_QUANT_BITS_MAP[self.weight_bit]
 
         self.percentile = False
 
@@ -500,7 +507,7 @@ class QuantLinear_Act(QuantLinear):
 
     def reset_bits(self, weight_bit=8):
         super(QuantLinear_Act, self).reset_bits(weight_bit)
-        self.weight_bit_act = ACT_QUANT_BITS_MAP[weight_bit]
+        # self.weight_bit_act = ACT_QUANT_BITS_MAP[weight_bit]
 
         self.quant_act.reset_bits(self.weight_bit_act)
 

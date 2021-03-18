@@ -539,7 +539,7 @@ class QuantBertModel(BertPreTrainedModel):
         self.encoder = BertEncoder(config)
         self.pooler = BertPooler(config)
 
-        config_dict = config.config_dict
+        config_dict = config
         if 'layer_bits' in config_dict:
             layer_bits = config_dict['layer_bits']
             

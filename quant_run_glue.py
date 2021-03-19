@@ -734,7 +734,7 @@ def main():
                         default=8,
                         help="Number of bits for weight.")
     # added arguments
-    parser.add_argument('--aug_train', type=str, default='none',)
+    parser.add_argument('--aug_train', type=str, default='none', help="Whether to train with augmented data.") 
     parser.add_argument('--eval_step',
                         type=int,
                         default=50)
@@ -866,8 +866,10 @@ def main():
     eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
 
 
-    quant_config = BertConfig.from_json_file("config/quant_bert_base.json")
+    # load config file from here
+    quant_config = BertConfig.from_json_file("config/new_example_config.json")
 
+    # change config if specified in command
     if "quant_group_number" in quant_config.__dict__:
         quant_config.__dict__["quant_group_number"] = args.quant_group_number
     for item in quant_config.__dict__:

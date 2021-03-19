@@ -818,13 +818,15 @@ def main():
 
     task_name = args.task_name.lower()
 
-    if task_name in default_params:
-        args.max_seq_len = default_params[task_name]["max_seq_length"]
 
-    if task_name in default_params:
+    if not args.num_train_epochs:
         args.num_train_epochs = default_params[task_name]["num_train_epochs"]
+    if not args.learning_rate:
         args.learning_rate = default_params[task_name]["learning_rate"]
+    if not args.train_batch_size:
         args.train_batch_size = default_params[task_name]["train_batch_size"]
+    if not args.max_seq_len:
+        args.max_seq_len = default_params[task_name]["max_seq_length"]
 
     # print(task_name in default_params, args.num_train_epochs, args.max_seq_length)
     if task_name not in processors:

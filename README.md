@@ -1,6 +1,4 @@
-# How to do fine-controlled quantization
-
-Notice the extra argument is config.json
+# How to do fine-controlled post quantization
 
 Select which gpu to run on:
 ```bash
@@ -9,18 +7,17 @@ export CUDA_VISIBLE_DEVICES=6,7;
 
 Quantization of CoLA:
 ```bash
-python run_glue.py --task_name CoLA \
---do_train \
+python quant_run_glue.py --task_name CoLA \
 --do_lower_case \
---data_dir ../data/glue_data/CoLA \
---bert_model ${bert-base-uncased or RESULT DIR PATH}$ \
+--data_dir ${DATA DIR}$ \
+--model ${FINE TUNED MODEL PATH}$ \
 --max_seq_length 128 \
 --train_batch_size 32 \
 --learning_rate 2e-5 \
 --num_train_epochs 1 \
 --weight_bit 4 \
---output_dir ../results/ \
---config_dir=new_config.json
+--activation_bit 4 \
+--output_dir ${OUTPUT DIR}$ \
 ```
 
 Evaluation after quantization of CoLA:
@@ -35,6 +32,7 @@ python run_glue.py --task_name CoLA \
 --learning_rate 2e-5 \
 --num_train_epochs 1 \
 --weight_bit 4 \
+--activation_bit 4 \
 --output_dir ${NEW OUTPUT DIR}$ \
 --config_dir=new_config.json
 ```

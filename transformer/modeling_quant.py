@@ -1206,8 +1206,9 @@ class QBertForSequenceClassification(BertPreTrainedModel):
 
         sequence_output, att_output, pooled_output = self.bert(input_ids, token_type_ids, attention_mask,
                                                                output_all_encoded_layers=True, output_att=True)
-
-        logits = self.classifier(torch.relu(pooled_output))
+        pooled_output = self.dropout(pooled_output) # add just to see difference between v0
+        # logits = self.classifier(torch.relu(pooled_output))
+        logits = self.classifier(pooled_output)
 
         tmp = []
         if is_student:

@@ -42,6 +42,8 @@ from transformer.tokenization import BertTokenizer
 from transformer.optimization import BertAdam, AdamW, NewWarmupLinearSchedule
 from transformer.file_utils import WEIGHTS_NAME, CONFIG_NAME
 
+from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
+
 csv.field_size_limit(sys.maxsize)
 
 log_format = '%(asctime)s %(message)s'
@@ -912,7 +914,7 @@ def main():
 
         logger.info('Total parameters: {}'.format(size))
 
-        no_decay = ['bias', 'LayerNorm.weight']
+        no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
         optimizer_grouped_parameters = [
             {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
              'weight_decay': 0.01},
@@ -920,10 +922,14 @@ def main():
              'weight_decay': 0.0}
             ]
 
-        optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=1e-8)
-        scheduler = NewWarmupLinearSchedule(optimizer, warmup_steps=int(args.warmup_proportion*num_train_optimization_steps), 
-            t_total=num_train_optimization_steps)
-
+        # optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=1e-8)
+        # scheduler = NewWarmupLinearSchedule(optimizer, warmup_steps=int(args.warmup_proportion*num_train_optimization_steps), 
+        #     t_total=num_train_optimization_steps)
+        optimizer = BertAdam(
+                optimizer_grouped_parameters,
+                lr=args.learning_rate,
+                warmup=args.warmup_proportion,
+                t_total=num_train_optimization_steps)
 
         # Prepare loss functions
         loss_mse = MSELoss()
@@ -987,7 +993,7 @@ def main():
 
                 if (step + 1) % args.gradient_accumulation_steps == 0:
                     optimizer.step()
-                    scheduler.step()
+                    # scheduler.step()
                     model.zero_grad()
                     global_step += 1
 

@@ -450,6 +450,12 @@ class AugmentProcessor(object):
                     logger.info(f"label_count {self.augmentor.label_count}")
         print(self.augmentor.label_count)
 
+class Generate(object):
+    def __init__(self, tokenizer, LM_model):
+        self.tokenizer = tokenizer
+        self.model = LM_model
+
+
 def main():
     parser = argparse.ArgumentParser()
 
@@ -459,8 +465,8 @@ def main():
                         help="Generated output will be placed under this folder")
     parser.add_argument("--generation_mode", default="parallel-sequential", type=str, 
                         help="Mode of generating sentence")
-    parser.add_argument("--task_name", default=None, type=str, 
-                        help="Which processor to use")
+    # parser.add_argument("--task_name", default=None, type=str, 
+    #                     help="Which processor to use")
     parser.add_argument("--max_len", default=512, type=int, 
                         help="Max sequence length to generate")
     parser.add_argument("--bytes", default="1M", type=str, 
@@ -470,29 +476,29 @@ def main():
                         help="Random seed to reproduce results")
 
     # original argument
-    parser.add_argument("--pretrained_bert_model", default="bert_base", type=str, 
-                        help="Downloaded pretrained model (bert-base-uncased) is under this folder")
-    parser.add_argument("--glove_embs", default="/rscratch/sheng.s/clip_boi/grid-feats-vqa/mmf/glove.6B.300d.txt", type=str, 
-                        help="Glove word embeddings file")
-    parser.add_argument("--glue_dir", default="/dnn/sheng.s/glue_data/", type=str,
-                        help="GLUE data dir")
-    parser.add_argument("--task_name", default=None, type=str, required=True,
-                        help="Task(eg. CoLA, SST-2) that we want to do data augmentation for its train set")
-    parser.add_argument("--N", default=2, type=int,
-                        help="How many times is the corpus expanded?")
-    parser.add_argument("--M", default=15, type=int,
-                        help="Choose from M most-likely words in the corresponding position")
-    parser.add_argument("--p", default=0.15, type=float,
-                        help="Threshold probability p to replace current word")
+    # parser.add_argument("--pretrained_bert_model", default="bert_base", type=str, 
+    #                     help="Downloaded pretrained model (bert-base-uncased) is under this folder")
+    # parser.add_argument("--glove_embs", default="/rscratch/sheng.s/clip_boi/grid-feats-vqa/mmf/glove.6B.300d.txt", type=str, 
+    #                     help="Glove word embeddings file")
+    # parser.add_argument("--glue_dir", default="/dnn/sheng.s/glue_data/", type=str,
+    #                     help="GLUE data dir")
+    # parser.add_argument("--task_name", default=None, type=str, required=True,
+    #                     help="Task(eg. CoLA, SST-2) that we want to do data augmentation for its train set")
+    # parser.add_argument("--N", default=2, type=int,
+    #                     help="How many times is the corpus expanded?")
+    # parser.add_argument("--M", default=15, type=int,
+    #                     help="Choose from M most-likely words in the corresponding position")
+    # parser.add_argument("--p", default=0.15, type=float,
+    #                     help="Threshold probability p to replace current word")
 
-    parser.add_argument("--p_dist", default=0.5, type=float,
-                        help="Threshold probability p_dist to replace current word by the most / least likely word")
+    # parser.add_argument("--p_dist", default=0.5, type=float,
+    #                     help="Threshold probability p_dist to replace current word by the most / least likely word")
 
-    parser.add_argument("--source", default="MNLI", type=str,
-                        help="source to generate the current pesudo label")
+    # parser.add_argument("--source", default="MNLI", type=str,
+    #                     help="source to generate the current pesudo label")
     
-    parser.add_argument("--label_balance", default=True, type=bool,
-                        help="do we ensure the label balance in generate dataset")
+    # parser.add_argument("--label_balance", default=True, type=bool,
+    #                     help="do we ensure the label balance in generate dataset")
 
 
     args = parser.parse_args()
@@ -505,36 +511,33 @@ def main():
     if n_gpu > 0:
         torch.cuda.manual_seed_all(args.seed)
 
-
-    pretrained_bert_model = f"/rscratch/sheng.s/model/{args.pretrained_bert_model}"
-    # Prepare data augmentor
+    # TO DO: set fine-tuned model for now, later take from arg
+    pretrained_bert_model = f"/rscratch/bohan/ZQBert/zero-shot-qbert/Berts/mrpc_base_l12/"
+    # Prepare two models for generation and labeling
     tokenizer = BertTokenizer.from_pretrained(pretrained_bert_model)
-    model = BertForMaskedLM.from_pretrained(pretrained_bert_model)
-    model.eval()
+    LM_model = BertForMaskedLM.from_pretrained(pretrained_bert_model)
+    # TO DO: How to load fine-tuned model 
+    TA_model = 
+    LM_model.eval()
+    # TA_model = 
 
-    task_name = args.task_name.lower()
-    processor = processors[task_name]()
-    label_list = processor.get_labels()
-    num_labels = len(label_list)
+    # task_name = args.task_name.lower()
+    # processor = processors[task_name]()
+    # label_list = processor.get_labels()
 
-    teacher_model_tokenizer = BertTokenizer.from_pretrained(f"/rscratch/sheng.s/zero-shot-qbert/{args.pretrained_bert_model}/base_{args.task_name}")
-    teacher_model = TinyBertForSequenceClassification.from_pretrained(f"/rscratch/sheng.s/zero-shot-qbert/{args.pretrained_bert_model}/base_{args.task_name}",num_labels=num_labels)
-    teacher_model.eval()
 
-    emb_norm, vocab, ids_to_tokens = prepare_embedding_retrieval(args.glove_embs)
-
-    pair = len(augment_ids[args.task_name]) == 2
+    # pair = len(augment_ids[args.task_name]) == 2
     
     with torch.no_grad():
-        data_augmentor = DataAugmentor(model, tokenizer, teacher_model, teacher_model_tokenizer, 
-            emb_norm, vocab, ids_to_tokens, args.M, args.N, args.p, p_dist=args.p_dist, pair=pair)
+        # data_augmentor = DataAugmentor(model, tokenizer, teacher_model, teacher_model_tokenizer, 
+        #     emb_norm, vocab, ids_to_tokens, args.M, args.N, args.p, p_dist=args.p_dist, pair=pair)
 
-        # Do data augmentation
-        if args.task_name == "MNLI":
-            assert args.source != "MNLI"
+        # # Do data augmentation
+        # if args.task_name == "MNLI":
+        #     assert args.source != "MNLI"
 
-        processor = AugmentProcessor(data_augmentor, args.glue_dir, args.task_name, args.source, label_list=label_list)
-        processor.read_augment_write()
+        # processor = AugmentProcessor(data_augmentor, args.glue_dir, args.task_name, args.source, label_list=label_list)
+        # processor.read_augment_write()
 
 
 if __name__ == "__main__":

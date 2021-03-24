@@ -185,7 +185,7 @@ def generate(n_samples, seed_text="[CLS]", batch_size=10, max_len=25,
 def main():
     n_gpu = torch.cuda.device_count()
 
-    n_samples = 2
+    #n_samples = 2
     batch_size = 2
     max_len = 40
     top_k = 100

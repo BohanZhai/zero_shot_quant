@@ -1,17 +1,29 @@
 import numpy as np
 import torch
-from pytorch_pretrained_bert import BertTokenizer, BertModel, BertForMaskedLM
+from transformer.tokenization import BertTokenizer
+from transformer.modeling import BertForMaskedLM
 import math
 import time
+import logging
+import sys
 
 CLS = '[CLS]'
 SEP = '[SEP]'
 MASK = '[MASK]'
-#pretrained_bert_model = f"/rscratch/bohan/ZQBert/zero-shot-qbert/Berts/mrpc_base_l12/"
-pretrained_bert_model = 'bert-base-uncased'
+
+log_format = '%(asctime)s %(message)s'
+logging.basicConfig(stream=sys.stdout, level=logging.INFO,
+                    format=log_format, datefmt='%m/%d %I:%M:%S %p')
+fh = logging.FileHandler('debug_layer_loss.log')
+fh.setFormatter(logging.Formatter(log_format))
+logging.getLogger().addHandler(fh)
+logger = logging.getLogger()
+
+pretrained_bert_model = f"/rscratch/bohan/ZQBert/zero-shot-qbert/Berts/mrpc_base_l12/"
+#pretrained_bert_model = 'bert-base-uncased'
 tokenizer = BertTokenizer.from_pretrained(pretrained_bert_model)
 model = BertForMaskedLM.from_pretrained(pretrained_bert_model)
-    
+
 mask_id = tokenizer.convert_tokens_to_ids([MASK])[0]
 sep_id = tokenizer.convert_tokens_to_ids([SEP])[0]
 cls_id = tokenizer.convert_tokens_to_ids([CLS])[0]

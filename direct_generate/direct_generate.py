@@ -445,13 +445,27 @@ class Generate(object):
                 
         return self.untokenize_batch(batch)
 
+    def parallel_generation(seed_text, batch_size=10, max_len=15, top_k=0, temperature=None, max_iter=300, sample=True):
+        """ Generate for all positions at each time step """
+        seed_len = len(seed_text)
+        batch = get_init_text(seed_text, max_len, batch_size)
+        
+        for ii in range(max_iter):
+            inp = torch.tensor(batch).cuda() if cuda else torch.tensor(batch)
+            out = model(inp)
+            for kk in range(max_len):
+                idxs = generate_step(out, gen_idx=seed_len+kk, top_k=top_k, temperature=temperature, sample=sample)
+                for jj in range(batch_size):
+                    batch[jj][seed_len+kk] = idxs[jj]
+
+        return untokenize_batch(batch)
+
     def process(self, sentences):
         """ Finish building a batch by breaking at CLS """
         new_batch = []
         for s in sentences:
-            new_batch.append(" ".join(s).split('[CLS]'))
+            new_batch.append(" ".join(s))
         return new_batch
-
 
 class Label(object):
     def __init__(self, tokenizer, TA_model):

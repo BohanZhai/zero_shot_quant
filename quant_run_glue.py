@@ -869,7 +869,7 @@ def main():
 
 
     # load config file from here
-    quant_config = BertConfig.from_json_file("config/new_example_config.json")
+    quant_config = BertConfig.from_json_file("config/quant_bert_base.json")
 
     # change config if specified in command
     if "quant_group_number" in quant_config.__dict__:
@@ -914,7 +914,7 @@ def main():
 
         logger.info('Total parameters: {}'.format(size))
 
-        no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
+        no_decay = ['bias', 'LayerNorm.weight']
         optimizer_grouped_parameters = [
             {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
              'weight_decay': 0.01},
@@ -922,14 +922,14 @@ def main():
              'weight_decay': 0.0}
             ]
 
-        # optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=1e-8)
-        # scheduler = NewWarmupLinearSchedule(optimizer, warmup_steps=int(args.warmup_proportion*num_train_optimization_steps), 
-        #     t_total=num_train_optimization_steps)
-        optimizer = BertAdam(
-                optimizer_grouped_parameters,
-                lr=args.learning_rate,
-                warmup=args.warmup_proportion,
-                t_total=num_train_optimization_steps)
+        optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=1e-8)
+        scheduler = NewWarmupLinearSchedule(optimizer, warmup_steps=int(args.warmup_proportion*num_train_optimization_steps), 
+            t_total=num_train_optimization_steps)
+        # optimizer = BertAdam(
+        #         optimizer_grouped_parameters,
+        #         lr=args.learning_rate,
+        #         warmup=args.warmup_proportion,
+        #         t_total=num_train_optimization_steps)
 
         # Prepare loss functions
         loss_mse = MSELoss()
@@ -993,7 +993,7 @@ def main():
 
                 if (step + 1) % args.gradient_accumulation_steps == 0:
                     optimizer.step()
-                    # scheduler.step()
+                    scheduler.step()
                     model.zero_grad()
                     global_step += 1
 

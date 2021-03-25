@@ -6,11 +6,11 @@ Idea from "BERT has a Mouth, and It Must Speak: BERT as a Markov Random Field La
 import argparse
 import logging
 import sys
-
+import csv
 import torch
 import numpy as np
 
-from transformer.tokenization import BertTokenizer
+from transformers import BertTokenizer
 from transformer.modeling import BertForMaskedLM, BertForSequenceClassification
 
 sys.path.append("..")
@@ -472,7 +472,14 @@ class Label(object):
         self.tokenizer = tokenizer
         self.model = TA_model
 
-    
+    def generate(self, string_batch):   
+        """ Given a list of sentences, call TA_model to generate labels """
+        inputs = self.tokenizer(string_batch, padding = True)
+        inputs = torch.LongTensor(inputs["input_ids"]).cuda()
+        logits = self.model(inputs)
+        prob = torch.nn.functional.log_softmax(logits)
+        outputs = prob.argmax(dim=1)
+        return outputs
 
 
 def main():
@@ -490,7 +497,7 @@ def main():
                         help="Max sequence length to generate")
     parser.add_argument("--iter_num", default=500, type=int, 
                         help="Iteration of repeating masking for each sentence")
-    parser.add_argument("--batch_num", default=1, type=int, 
+    parser.add_argument("--batch_num", default=2, type=int, 
                         help="How many batches to generate")
     parser.add_argument("--batch_size", default=5, type=int,
                         help="How many sentence to generate for one batch")
@@ -541,6 +548,17 @@ def main():
             print(len(string_batch))
 
             # TO DO: Take string_batch as input. Do inference and get a label. Write to output tsv.
+            labels = labeler.generate(string_batch)
+            print(labels)
+
+            with open('./output_labels.tsv', 'a+') as out_file:
+                tsv_writer = csv.writer(out_file, delimiter='\t')
+                for i in range(len(labels)):
+                    sentence = str(string_batch[i])
+                    label = str(int(labels[i].cpu()))
+                    # TODO: replace this line
+                    tsv_writer.writerow([sentence, label])
+
 
             logger.info("Having been generating {} batches".format(str(batch+1)))
 

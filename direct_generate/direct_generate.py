@@ -404,28 +404,26 @@ class Generate(object):
         return self.tokenize_batch(batch)
 
     def generate(self):
-        sentences = []
         length = np.random.randint(1, self.max_len+1)
-        for sentence_num in range(self.batch_size):
-            if self.generation_mode == "parallel-sequential":
-                sentence = self.parallel_sequential_generation(length)
 
-            # not implemented
-            elif generation_mode == "sequential":
-                raise NotImplementedError()
-                batch = sequential_generation(seed_text, batch_size=batch_size, max_len=max_len, top_k=top_k, 
-                                            temperature=temperature, leed_out_len=leed_out_len, sample=sample,
-                                            cuda=cuda)
-            elif generation_mode == "parallel":
-                raise NotImplementedError()
-                batch = parallel_generation(seed_text, batch_size=batch_size,
-                                            max_len=max_len, top_k=top_k, temperature=temperature, 
-                                            sample=sample, max_iter=max_iter, 
-                                            cuda=cuda, verbose=False)
-            else:
-                raise ValueError("Generation mode not found: %s" % self.generation_mode)
+        if self.generation_mode == "parallel-sequential":
+            sentences = self.parallel_sequential_generation(length)
 
-            sentences += sentence
+        # not implemented
+        elif generation_mode == "sequential":
+            raise NotImplementedError()
+            batch = sequential_generation(seed_text, batch_size=batch_size, max_len=max_len, top_k=top_k, 
+                                        temperature=temperature, leed_out_len=leed_out_len, sample=sample,
+                                        cuda=cuda)
+        elif generation_mode == "parallel":
+            raise NotImplementedError()
+            batch = parallel_generation(seed_text, batch_size=batch_size,
+                                        max_len=max_len, top_k=top_k, temperature=temperature, 
+                                        sample=sample, max_iter=max_iter, 
+                                        cuda=cuda, verbose=False)
+        else:
+            raise ValueError("Generation mode not found: %s" % self.generation_mode)
+
         return sentences
 
     def parallel_sequential_generation(self, length):
@@ -545,9 +543,9 @@ def main():
             sentence_batch = generator.generate()
             string_batch = generator.process(sentence_batch)
             print(string_batch)
-            print(len(string_batch))
+            # print(len(string_batch))
 
-            # TO DO: Take string_batch as input. Do inference and get a label. Write to output tsv.
+            # # TO DO: Take string_batch as input. Do inference and get a label. Write to output tsv.
             labels = labeler.generate(string_batch)
             print(labels)
 

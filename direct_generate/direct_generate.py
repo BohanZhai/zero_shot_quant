@@ -479,10 +479,9 @@ class Label(object):
         # inputs = torch.LongTensor(string_batch).cuda()
         # logits = self.model(inputs)
         logits = self.model(string_batch)
-        # prob = torch.nn.functional.log_softmax(logits)
-        # outputs = prob.argmax(dim=1)
-        # return outputs
-        return logits
+        prob = torch.nn.functional.log_softmax(logits)
+        outputs = prob.argmax(dim=1)
+        return outputs
 
 
 def main():
@@ -552,8 +551,7 @@ def main():
             # TO DO: Take string_batch as input. Do inference and get a label. Write to output tsv.
             #labels = labeler.generate(sentence_batch)
             s = "are more deeply thought through than in most ` right-thinking ' films"
-            t = torch.unsqueeze(torch.tensor(tokenizer.convert_tokens_to_ids(s)), -1).to(device)
-            #print(labels)
+            t = torch.unsqueeze(torch.tensor(tokenizer.encode(s)), 0).to(device)
             new_label = labeler.generate(t)
             print("new_label", new_label)
 

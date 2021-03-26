@@ -403,8 +403,9 @@ class Generate(object):
   
     def get_init_text(self, length):
         """ Get initial sentence by padding masks"""
-        batch = [[self.CLS] + [self.MASK] * length + [self.SEP] for _ in range(self.batch_size)]
-        return self.tokenize_batch(batch)
+        # batch = [[self.CLS] + [self.MASK] * length + [self.SEP] for _ in range(self.batch_size)]
+        batch = [[self.cls_id] + [np.random.randint(1000, 30522) for _ in range(length)] + [self.sep_id] for _ in range(self.batch_size)]
+        return batch
 
     def generate(self):
         length = np.random.randint(1, self.max_len+1)
@@ -443,7 +444,7 @@ class Generate(object):
             idxs = self.generate_step(out, gen_idx=position+1, top_k=topk, sample=(i < self.burnin))
             for j in range(self.batch_size):
                 batch[j][position+1] = idxs[j]
-                
+
         return batch
 
     def parallel_generation(seed_text, batch_size=10, max_len=15, top_k=0, temperature=None, max_iter=300, sample=True):
@@ -458,7 +459,7 @@ class Generate(object):
                 idxs = generate_step(out, gen_idx=seed_len+kk, top_k=top_k, temperature=temperature, sample=sample)
                 for jj in range(batch_size):
                     batch[jj][seed_len+kk] = idxs[jj]
-
+        print("String", self.untokenize_batch(batch))
         return batch
 
     def process(self, sentences):
@@ -476,12 +477,16 @@ class Label(object):
     def generate(self, string_batch):   
         """ Given a list of sentences, call TA_model to generate labels """
         # inputs = self.tokenizer(string_batch, padding = True)
-        # inputs = torch.LongTensor(string_batch).cuda()
-        # logits = self.model(inputs)
-        logits = self.model(string_batch)
-        prob = torch.nn.functional.log_softmax(logits)
-        outputs = prob.argmax(dim=1)
-        return outputs
+        inputs = torch.LongTensor(string_batch).cuda()
+        print("batch_size", len(string_batch))
+        print("sentence_size", len(string_batch[0]))
+        print("input shape", inputs.shape)
+        logits = self.model(inputs)
+        # logits = self.model(string_batch)
+        print("logits shape", logits.shape)
+        prob = torch.nn.functional.softmax(logits, dim=-1)
+        outputs = prob.argmax(dim=-1)
+        return prob, outputs
 
 
 def main():
@@ -497,16 +502,16 @@ def main():
     #                     help="Which head to use") # sequence classification for now
     parser.add_argument("--max_len", default=50, type=int, 
                         help="Max sequence length to generate")
-    parser.add_argument("--iter_num", default=500, type=int, 
+    parser.add_argument("--iter_num", default=100, type=int, 
                         help="Iteration of repeating masking for each sentence")
     parser.add_argument("--batch_num", default=2, type=int, 
                         help="How many batches to generate")
-    parser.add_argument("--batch_size", default=2, type=int,
+    parser.add_argument("--batch_size", default=100, type=int,
                         help="How many sentence to generate for one batch")
     parser.add_argument("--top_k", default=100, type=int,
                         help="Choose from top k words instead of full distribution")
     parser.add_argument("--temperature", default=1.0, type=float)
-    parser.add_argument("--burnin", default=250, type=int,
+    parser.add_argument("--burnin", default=10, type=int,
                         help="For non-sequential generation, for the first burnin steps, sample from the entire next word distribution, instead of top_k")
     parser.add_argument("--seed", default=1, type=int,
                         help="Random seed to reproduce results")
@@ -522,15 +527,17 @@ def main():
         torch.cuda.manual_seed_all(args.seed)
 
     # TO DO: set fine-tuned model for now, later take from args.model
-    pretrained_bert_model = f"/rscratch/bohan/ZQBert/zero-shot-qbert/Berts/sst_base_l12/"
+    pretrained_bert_model_gen = f"/rscratch/bohan/ZQBert/zero-shot-qbert/Berts/gen_base_l12/"
+    pretrained_bert_model_sst = f"/rscratch/bohan/ZQBert/zero-shot-qbert/Berts/sst_base_l12/"
 
     # Prepare two models for generation and labeling
-    tokenizer = BertTokenizer.from_pretrained(pretrained_bert_model)
-    LM_model = BertForMaskedLM.from_pretrained(pretrained_bert_model)
+    tokenizer_gen = BertTokenizer.from_pretrained(pretrained_bert_model_gen)
+    tokenizer_sst = BertTokenizer.from_pretrained(pretrained_bert_model_sst)
+    LM_model = BertForMaskedLM.from_pretrained(pretrained_bert_model_sst)
     LM_model.eval()
     LM_model.to(device)
 
-    TA_model = BertForSequenceClassification.from_pretrained(pretrained_bert_model)
+    TA_model = BertForSequenceClassification.from_pretrained(pretrained_bert_model_sst)
     TA_model.eval()
     TA_model.to(device)
 
@@ -539,30 +546,28 @@ def main():
         logger.info("Iteration less than length of a sentence will possibly result in a sentence with [MASK]")
     
     with torch.no_grad():
-        generator = Generate(tokenizer, LM_model, args.generation_mode, args.batch_size, args.max_len, 
+        generator = Generate(tokenizer_sst, LM_model, args.generation_mode, args.batch_size, args.max_len, 
                                 args.temperature, args.burnin, args.iter_num, args.top_k)
-        labeler = Label(tokenizer, TA_model)
+        labeler = Label(tokenizer_sst, TA_model)
 
         for batch in range(args.batch_num):
             #sentence_batch = generator.generate()
-            #print(sentence_batch)
-            # print(len(string_batch))
+            length = np.random.randint(1, args.max_len+1)
+            sentence_batch = generator.get_init_text(length)
 
-            # TO DO: Take string_batch as input. Do inference and get a label. Write to output tsv.
-            #labels = labeler.generate(sentence_batch)
-            s = "are more deeply thought through than in most ` right-thinking ' films"
-            t = torch.unsqueeze(torch.tensor(tokenizer.encode(s)), 0).to(device)
-            new_label = labeler.generate(t)
-            print("new_label", new_label)
+            labels = labeler.generate(sentence_batch)
+            # s = "are more deeply thought through than in most ` right-thinking ' films"
+            # t = torch.unsqueeze(torch.tensor(tokenizer.encode(s)), 0).to(device)
+            # new_label = labeler.generate(t)
 
 
-            # with open('./output_labels.tsv', 'a+') as out_file:
-            #     tsv_writer = csv.writer(out_file, delimiter='\t')
-            #     for i in range(len(labels)):
-            #         sentence = str(string_batch[i])
-            #         label = str(int(labels[i].cpu()))
-            #         # TODO: replace this line
-            #         tsv_writer.writerow([sentence, label])
+            with open('./output_labels.tsv', 'a+') as out_file:
+                tsv_writer = csv.writer(out_file, delimiter='\t')
+                for i in range(len(labels)):
+                    sentence = str(sentence_batch[i])
+                    label = str(labels[i].cpu())
+                    # TODO: replace this line
+                    tsv_writer.writerow([sentence, label])
 
 
             logger.info("Having been generating {} batches".format(str(batch+1)))

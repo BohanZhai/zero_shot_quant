@@ -375,6 +375,9 @@ class Generate(object):
     def untokenize_batch(self, batch):
         return [self.tokenizer.convert_ids_to_tokens(sent) for sent in batch]
 
+    def sentenize_batch(self, batch):
+        return [self.tokenizer.convert_tokens_to_string(sent) for sent in batch]
+
     def generate_step(self, out, gen_idx, top_k=0, sample=False):
         """ Generate a word from from out[gen_idx]
         
@@ -441,7 +444,7 @@ class Generate(object):
             for j in range(self.batch_size):
                 batch[j][position+1] = idxs[j]
                 
-        return self.untokenize_batch(batch)
+        return batch
 
     def parallel_generation(seed_text, batch_size=10, max_len=15, top_k=0, temperature=None, max_iter=300, sample=True):
         """ Generate for all positions at each time step """
@@ -456,7 +459,7 @@ class Generate(object):
                 for jj in range(batch_size):
                     batch[jj][seed_len+kk] = idxs[jj]
 
-        return untokenize_batch(batch)
+        return batch
 
     def process(self, sentences):
         """ Finish building a batch by breaking at CLS """
@@ -472,12 +475,14 @@ class Label(object):
 
     def generate(self, string_batch):   
         """ Given a list of sentences, call TA_model to generate labels """
-        inputs = self.tokenizer(string_batch, padding = True)
-        inputs = torch.LongTensor(inputs["input_ids"]).cuda()
-        logits = self.model(inputs)
-        prob = torch.nn.functional.log_softmax(logits)
-        outputs = prob.argmax(dim=1)
-        return outputs
+        # inputs = self.tokenizer(string_batch, padding = True)
+        # inputs = torch.LongTensor(string_batch).cuda()
+        # logits = self.model(inputs)
+        logits = self.model(string_batch)
+        # prob = torch.nn.functional.log_softmax(logits)
+        # outputs = prob.argmax(dim=1)
+        # return outputs
+        return logits
 
 
 def main():
@@ -497,7 +502,7 @@ def main():
                         help="Iteration of repeating masking for each sentence")
     parser.add_argument("--batch_num", default=2, type=int, 
                         help="How many batches to generate")
-    parser.add_argument("--batch_size", default=5, type=int,
+    parser.add_argument("--batch_size", default=2, type=int,
                         help="How many sentence to generate for one batch")
     parser.add_argument("--top_k", default=100, type=int,
                         help="Choose from top k words instead of full distribution")
@@ -540,22 +545,26 @@ def main():
         labeler = Label(tokenizer, TA_model)
 
         for batch in range(args.batch_num):
-            sentence_batch = generator.generate()
-            string_batch = generator.process(sentence_batch)
-            print(string_batch)
+            #sentence_batch = generator.generate()
+            #print(sentence_batch)
             # print(len(string_batch))
 
-            # # TO DO: Take string_batch as input. Do inference and get a label. Write to output tsv.
-            labels = labeler.generate(string_batch)
-            print(labels)
+            # TO DO: Take string_batch as input. Do inference and get a label. Write to output tsv.
+            #labels = labeler.generate(sentence_batch)
+            s = "are more deeply thought through than in most ` right-thinking ' films"
+            t = torch.unsqueeze(torch.tensor(tokenizer.convert_tokens_to_ids(s)), -1).to(device)
+            #print(labels)
+            new_label = labeler.generate(t)
+            print("new_label", new_label)
 
-            with open('./output_labels.tsv', 'a+') as out_file:
-                tsv_writer = csv.writer(out_file, delimiter='\t')
-                for i in range(len(labels)):
-                    sentence = str(string_batch[i])
-                    label = str(int(labels[i].cpu()))
-                    # TODO: replace this line
-                    tsv_writer.writerow([sentence, label])
+
+            # with open('./output_labels.tsv', 'a+') as out_file:
+            #     tsv_writer = csv.writer(out_file, delimiter='\t')
+            #     for i in range(len(labels)):
+            #         sentence = str(string_batch[i])
+            #         label = str(int(labels[i].cpu()))
+            #         # TODO: replace this line
+            #         tsv_writer.writerow([sentence, label])
 
 
             logger.info("Having been generating {} batches".format(str(batch+1)))

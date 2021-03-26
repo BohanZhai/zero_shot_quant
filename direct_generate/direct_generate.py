@@ -22,333 +22,6 @@ logger = logging.getLogger()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# def _read_tsv(input_file, quotechar=None):
-#     """Reads a tab separated value file."""
-#     with open(input_file, "r", encoding="utf-8") as f:
-#         reader = csv.reader(f, delimiter="\t", quotechar=quotechar)
-#         lines = []
-#         for line in reader:
-#             if sys.version_info[0] == 2:
-#                 line = list(unicode(cell, 'utf-8') for cell in line)
-#             lines.append(line)
-#         return lines
-
-
-# def _truncate_seq_pair(tokens_a, tokens_b, max_length):
-#     """Truncates a sequence pair in place to the maximum length."""
-#     while True:
-#         total_length = len(tokens_a) + len(tokens_b)
-#         if total_length <= max_length:
-#             break
-#         if len(tokens_a) > len(tokens_b):
-#             tokens_a.pop()
-#         else:
-#             tokens_b.pop()
-
-# class DataAugmentor(object):
-#     def __init__(self, model, tokenizer, teacher_model, teacher_model_tokenizer, emb_norm, vocab, ids_to_tokens, 
-#         M, N, p, p_dist=0.5, pair=False):
-#         self.model = model
-#         self.tokenizer = tokenizer
-#         self.emb_norm = emb_norm
-#         self.vocab = vocab
-#         self.ids_to_tokens = ids_to_tokens
-#         self.M = M
-#         self.N = N
-#         self.p = p
-#         self.p_dist = p_dist
-#         self.teacher_model = teacher_model
-#         self.teacher_model_tokenizer = teacher_model_tokenizer
-#         self.num_labels = teacher_model.num_labels
-#         self.label_count = [0 for _ in range(self.num_labels)]
-#         self.pair = pair
-
-#     def _word_distance(self, word):
-#         p_dist = random.random() < self.p_dist
-#         if word not in self.vocab.keys():
-#             return []
-#         word_idx = self.vocab[word]
-#         word_emb = self.emb_norm[word_idx]
-
-#         dist = np.dot(self.emb_norm, word_emb.T)
-#         dist[word_idx] = -np.Inf
-
-#         if p_dist:
-#             candidate_ids = np.argsort(-dist)[:self.M]
-#         else:
-#             candidate_ids = np.argsort(dist)[:self.M]
-
-#         return [self.ids_to_tokens[idx] for idx in candidate_ids][:self.M]
-
-#     def _check_label(self, sent, candidate_sent):
-#         tokenized_text = self.teacher_model_tokenizer.tokenize(candidate_sent)
-        
-
-#         if self.pair:
-#             tokenized_text_a = self.teacher_model_tokenizer.tokenize(sent)
-#             _truncate_seq_pair(tokenized_text_a, tokenized_text, max_seq_length - 3, )
-#             # tokenized_text = tokenized_text_a + ['[SEP]'] + tokenized_text + ['[SEP]']
-#         else:
-#             tokenized_text_a = None
-#             if len(tokenized_text) > max_seq_length - 2:
-#                 tokenized_text = tokenized_text[:(max_seq_length - 2)]
-#             # tokenized_text = tokenized_text + ['[SEP]']
-
-#         tokens = ["[CLS]"] + tokenized_text + ["[SEP]"]
-#         segment_ids = [0] * len(tokens)
-
-#         if tokenized_text_a:
-#             tokens += tokenized_text_a + ["[SEP]"]
-#             segment_ids += [1] * (len(tokenized_text_a) + 1)
-
-#         input_ids = self.teacher_model_tokenizer.convert_tokens_to_ids(tokens)
-#         input_mask = [1] * len(input_ids)
-#         seq_length = len(input_ids)
-
-#         padding = [0] * (max_seq_length - len(input_ids))
-#         input_ids += padding
-#         input_mask += padding
-#         segment_ids += padding
-
-        
-#         segments_tensor = torch.tensor([segment_ids]).to(device)
-#         tokens_tensor = torch.tensor([input_ids]).to(device)
-#         input_mask_tensor = torch.tensor([input_mask]).to(device)
-
-#         self.teacher_model.to(device)
-#         logits, _, _ = self.teacher_model(tokens_tensor, segments_tensor, input_mask_tensor, is_student=True)
-#         label = np.argmax( logits.cpu().numpy()[0] )
-#         return label
-
-#     def _masked_language_model(self, sent, word_pieces, mask_id):
-#         tokenized_text = self.tokenizer.tokenize(sent)
-#         tokenized_text = ['[CLS]'] + tokenized_text
-#         tokenized_len = len(tokenized_text)
-
-#         tokenized_text = word_pieces + ['[SEP]'] + tokenized_text[1:] + ['[SEP]']
-
-#         if len(tokenized_text) > 512:
-#             tokenized_text = tokenized_text[:512]
-
-#         token_ids = self.tokenizer.convert_tokens_to_ids(tokenized_text)
-#         segments_ids = [0] * (tokenized_len + 1) + [1] * (len(tokenized_text) - tokenized_len - 1)
-
-#         tokens_tensor = torch.tensor([token_ids]).to(device)
-#         segments_tensor = torch.tensor([segments_ids]).to(device)
-
-#         self.model.to(device)
-
-#         predictions = self.model(tokens_tensor, segments_tensor)
-
-#         word_candidates = torch.argsort(predictions[0, mask_id], descending=True)[:self.M].tolist()
-#         word_candidates = self.tokenizer.convert_ids_to_tokens(word_candidates)
-
-#         return list(filter(lambda x: x.find("##"), word_candidates))
-
-#     def _word_augment(self, sentence, mask_token_idx, mask_token):
-#         word_pieces = self.tokenizer.tokenize(sentence)
-#         word_pieces = ['[CLS]'] + word_pieces
-#         tokenized_len = len(word_pieces)
-
-#         token_idx = -1
-#         for i in range(1, tokenized_len):
-#             if "##" not in word_pieces[i]:
-#                 token_idx = token_idx + 1
-#                 if token_idx < mask_token_idx:
-#                     word_piece_ids = []
-#                 elif token_idx == mask_token_idx:
-#                     word_piece_ids = [i]
-#                 else:
-#                     break
-#             else:
-#                 word_piece_ids.append(i)
-#         if mask_token == '[UNK]':
-#             print(word_piece_ids, len(word_piece_ids))
-#             exit()
-
-#         if len(word_piece_ids) == 1:
-#             word_pieces[word_piece_ids[0]] = '[MASK]'
-#             candidate_words = self._masked_language_model(
-#                 sentence, word_pieces, word_piece_ids[0])
-#         elif len(word_piece_ids) > 1:
-#             candidate_words = self._word_distance(mask_token)
-#         else:
-#             logger.info("invalid input sentence!")
-        
-#         if len(candidate_words)==0:
-#             candidate_words.append(mask_token)
-
-#         return candidate_words
-
-#     def augment(self, sent):
-#         # candidate_sents = [sent]
-
-#         candidate_sents = []
-
-#         tokens = self.tokenizer.basic_tokenizer.tokenize(sent)
-#         candidate_words = {}
-#         for (idx, word) in enumerate(tokens):
-#             if _is_valid(word) and word not in StopWordsList:
-#                 candidate_words[idx] = self._word_augment(sent, idx, word)
-#         # logger.info(candidate_words)
-#         cnt = 0
-#         while cnt < self.N:
-#             new_sent = list(tokens)
-#             for idx in candidate_words.keys():
-#                 candidate_word = random.choice(candidate_words[idx])
-
-#                 x = random.random()
-#                 if x < self.p:
-#                     new_sent[idx] = candidate_word
-
-#             if " ".join(new_sent) not in candidate_sents:
-#                 label = self._check_label( sent, " ".join(new_sent),  )
-
-#                 candidate_sents.append( (' '.join(new_sent), label) )
-
-#                 self.label_count[label] += 1
-
-#             cnt += 1
-
-#         return candidate_sents
-
-# augment_ids = {'MRPC': [3, 4], 'MNLI': [8, 9], 'CoLA': [3], 'SST-2': [0],
-#                 'STS-B': [7, 8], 'QQP': [3, 4], 'QNLI': [1, 2], 'RTE': [1, 2]}
-
-# label_ids = {'MRPC': 0, 'MNLI': -1, 'CoLA': 1, 'SST-2': 1,
-#             'STS-B': -1, 'QQP': 5, 'QNLI': -1, 'RTE': -1}
-
-# class AugmentProcessor(object):
-#     def __init__(self, augmentor, glue_dir, task_name, source="MNLI", label_list=None):
-#         self.augmentor = augmentor
-#         self.glue_dir = glue_dir
-#         self.task_name = task_name
-
-#         self.source = source
-#         self.augment_ids = {'MRPC': [3, 4], 'MNLI': [8, 9], 'CoLA': [3], 'SST-2': [0],
-#                             'STS-B': [7, 8], 'QQP': [3, 4], 'QNLI': [1, 2], 'RTE': [1, 2]}
-
-#         self.filter_flags = { 'MRPC': True, 'MNLI': True, 'CoLA': False, 'SST-2': True,
-#                               'STS-B': True, 'QQP': True, 'QNLI': True, 'RTE': True}
-#         self.n_sample = 10000
-#         self.label_list = label_list
-
-#         assert self.task_name in self.augment_ids
-
-#     def _process_source(self):
-#         source_sents = []
-#         if self.source in self.augment_ids:
-#             source_dir = os.path.join(self.glue_dir, self.source)
-#             source_train_samples = _read_tsv(os.path.join(source_dir, "train.tsv"))
-#             random.shuffle(source_train_samples)
-#             source_augment_id_ = self.augment_ids[self.source][0]
-#             for (i, line) in enumerate(source_train_samples):
-#                 sent = line[source_augment_id_]
-#                 source_sents.append(sent)
-#                 if i > self.n_sample:
-#                     break
-#         else:
-#             # ood sents
-#             docs = DocumentDatabase(False)
-#             docs.document_shelf = shelve.open('./shelf.db')
-
-#             docs.doc_cumsum = docs.document_shelf["doc_cumsum"]
-#             docs.cumsum_max = docs.document_shelf["cumsum_max"]
-#             docs.doc_lengths = docs.document_shelf["doc_lengths"] 
-
-#             print(docs.doc_cumsum, docs.document_shelf[str(0)], docs.document_shelf[str(1)])
-
-#             doc_idxs = list( range( len(docs) ) )
-#             random.shuffle(doc_idxs)
-#             sent_count = 0
-#             target_seq_length = max_seq_length - 3
-
-#             doc_database = docs.document_shelf
-#             for doc_idx in doc_idxs:
-#                 document = doc_database[str(doc_idx)]
-
-#                 i = 0
-#                 current_chunk = []
-#                 current_length = 0
-#                 while i < len(document):
-#                     segment = document[i]
-#                     current_chunk.append(segment)
-#                     current_length += len(segment)
-#                     if i == len(document) - 1 or current_length >= target_seq_length:    
-#                         if current_chunk:
-#                             # `a_end` is how many segments from `current_chunk` go into the `A`
-#                             # (first) sentence.
-#                             a_end = 1
-#                             if len(current_chunk) >= 2:
-#                                 a_end = random.randrange(1, len(current_chunk))
-
-#                             tokens_a = []
-#                             for j in range(a_end):
-#                                 tokens_a.extend(current_chunk[j])
-
-#                             if not tokens_a or len(tokens_a) == 0:
-#                                 tokens_a = ["."]
-#                             assert len(tokens_a) >= 1
-
-#                             if len(tokens_a) > 5:
-#                                 tokens_a = tokens_a[:max_seq_length]
-#                                 # print(len(tokens_a))
-#                                 source_sents.append( " ".join(tokens_a).replace("##", "") )
-#                                 sent_count += 1
-
-#                         current_chunk = []
-#                         current_length = 0
-#                     i += 1
-
-#                 if sent_count > self.n_sample:
-#                     break 
-#         return source_sents
-
-#     def read_augment_write(self):
-#         task_dir = os.path.join(self.glue_dir, self.task_name)
-#         train_samples = _read_tsv(os.path.join(task_dir, "train.tsv"))
-
-#         self.n_sample = len(train_samples) * 1
-
-#         source_sents = self._process_source()
-#         logger.info(f"load source_sents!")
-#         source = self.source.lower()
-#         output_filename = os.path.join(task_dir, f"train_gen_{source}.tsv")
-
-#         augment_ids_ = self.augment_ids[self.task_name]
-#         filter_flag = self.filter_flags[self.task_name]
-
-#         pair = len(augment_ids_) == 2
-
-#         label_idx = label_ids[ self.task_name ]
-#         with open(output_filename, 'w', newline='', encoding="utf-8") as f:
-#             writer = csv.writer(f, delimiter="\t")
-#             for (i, line) in enumerate(train_samples):
-#                 if i == 0 and filter_flag:
-#                     writer.writerow(line)
-#                     continue
-
-#                 if pair:
-#                     line[augment_ids_[-1]] = source_sents[i]
-
-#                 for augment_id in augment_ids_[:1]:
-#                     # sent = line[augment_id]
-#                     sent = source_sents[i]
-
-#                     augmented_sents = self.augmentor.augment(sent)
-#                     for (augment_sent, augment_label) in augmented_sents:
-
-#                         line[augment_id] = augment_sent
-#                         line[ label_idx ] = self.label_list[augment_label]
-#                         writer.writerow(line)
-
-#                 if (i+1) % 1000 == 0:
-#                     logger.info("Having been processing {} examples".format(str(i+1)))
-#                     logger.info(f"label_count {self.augmentor.label_count}")
-#         print(self.augmentor.label_count)
-
-
-
 
 class Generate(object):
     def __init__(self, tokenizer, LM_model, generation_mode, batch_size, max_len, temperature, burnin, iter_num, top_k):
@@ -478,15 +151,11 @@ class Label(object):
         """ Given a list of sentences, call TA_model to generate labels """
         # inputs = self.tokenizer(string_batch, padding = True)
         inputs = torch.LongTensor(string_batch).cuda()
-        print("batch_size", len(string_batch))
-        print("sentence_size", len(string_batch[0]))
-        print("input shape", inputs.shape)
         logits = self.model(inputs)
         # logits = self.model(string_batch)
-        print("logits shape", logits.shape)
         prob = torch.nn.functional.softmax(logits, dim=-1)
         outputs = prob.argmax(dim=-1)
-        return prob, outputs
+        return prob
 
 
 def main():
@@ -504,7 +173,7 @@ def main():
                         help="Max sequence length to generate")
     parser.add_argument("--iter_num", default=100, type=int, 
                         help="Iteration of repeating masking for each sentence")
-    parser.add_argument("--batch_num", default=2, type=int, 
+    parser.add_argument("--batch_num", default=85, type=int, 
                         help="How many batches to generate")
     parser.add_argument("--batch_size", default=100, type=int,
                         help="How many sentence to generate for one batch")
@@ -555,7 +224,7 @@ def main():
             length = np.random.randint(1, args.max_len+1)
             sentence_batch = generator.get_init_text(length)
 
-            labels = labeler.generate(sentence_batch)
+            prob_tensor = labeler.generate(sentence_batch)
             # s = "are more deeply thought through than in most ` right-thinking ' films"
             # t = torch.unsqueeze(torch.tensor(tokenizer.encode(s)), 0).to(device)
             # new_label = labeler.generate(t)
@@ -563,11 +232,12 @@ def main():
 
             with open('./output_labels.tsv', 'a+') as out_file:
                 tsv_writer = csv.writer(out_file, delimiter='\t')
-                for i in range(len(labels)):
+                for i in range(len(prob_tensor)):
                     sentence = str(sentence_batch[i])
-                    label = str(labels[i].cpu())
+                    # label = str(labels[i].cpu())
+                    prob = str(prob_tensor[i].cpu()[0].item())
                     # TODO: replace this line
-                    tsv_writer.writerow([sentence, label])
+                    tsv_writer.writerow([sentence, prob])
 
 
             logger.info("Having been generating {} batches".format(str(batch+1)))

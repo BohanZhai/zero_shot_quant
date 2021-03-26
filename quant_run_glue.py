@@ -243,7 +243,7 @@ class Sst2Processor(DataProcessor):
     def get_train_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+            self._read_tsv(os.path.join(data_dir, "new_train.tsv")), "train")
 
     def get_dev_examples(self, data_dir):
         """See base class."""
@@ -256,7 +256,8 @@ class Sst2Processor(DataProcessor):
 
     def get_labels(self):
         """See base class."""
-        return ["0", "1"]
+        #return ["0", "1"]
+        return [None]
 
     def _create_examples(self, lines, set_type):
         """Creates examples for the training and dev sets."""
@@ -453,6 +454,78 @@ class WnliProcessor(DataProcessor):
 
 
 def convert_examples_to_features(examples, label_list, max_seq_length,
+                                 tokenizer, output_mode):
+    """Loads a data file into a list of `InputBatch`s."""
+
+    label_map = {label: i for i, label in enumerate(label_list)}
+
+    features = []
+    for (ex_index, example) in enumerate(examples):
+        if ex_index % 10000 == 0:
+            logger.info("Writing example %d of %d" % (ex_index, len(examples)))
+
+        # tokens_a = tokenizer.tokenize(example.text_a)
+
+        # tokens_b = None
+        # if example.text_b:
+        #     tokens_b = tokenizer.tokenize(example.text_b)
+        #     _truncate_seq_pair(tokens_a, tokens_b, max_seq_length - 3)
+        # else:
+        #     if len(tokens_a) > max_seq_length - 2:
+        #         tokens_a = tokens_a[:(max_seq_length - 2)]
+
+        # tokens = ["[CLS]"] + tokens_a + ["[SEP]"]
+        # segment_ids = [0] * len(tokens)
+
+        # if tokens_b:
+        #     tokens += tokens_b + ["[SEP]"]
+        #     segment_ids += [1] * (len(tokens_b) + 1)
+
+        # input_ids = tokenizer.convert_tokens_to_ids(tokens)
+        input_ids = [101]+list(map(int, example.text_a.split(", ")[1:-1]))+[102]
+        segment_ids = [0] * len(input_ids)
+        #print(input_ids)
+        input_mask = [1] * len(input_ids)
+        seq_length = len(input_ids)
+
+        padding = [0] * (max_seq_length - len(input_ids))
+        input_ids += padding
+        input_mask += padding
+        segment_ids += padding
+
+        assert len(input_ids) == max_seq_length
+        assert len(input_mask) == max_seq_length
+        assert len(segment_ids) == max_seq_length
+
+        if output_mode == "classification":
+            label_id = label_map[example.label]
+        elif output_mode == "regression":
+            label_id = float(example.label)
+        else:
+            raise KeyError(output_mode)
+
+        if ex_index < 1:
+            logger.info("*** Example ***")
+            logger.info("guid: %s" % (example.guid))
+            #logger.info("tokens: %s" % " ".join(
+            #    [str(x) for x in tokens]))
+            logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
+            logger.info("input_mask: %s" % " ".join([str(x) for x in input_mask]))
+            logger.info(
+                "segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
+            logger.info("label: {}".format(example.label))
+            logger.info("label_id: {}".format(label_id))
+
+        features.append(
+            InputFeatures(input_ids=input_ids,
+                          input_mask=input_mask,
+                          segment_ids=segment_ids,
+                          label_id=label_id,
+                          seq_length=seq_length))
+    return features
+
+
+def old_convert_examples_to_features(examples, label_list, max_seq_length,
                                  tokenizer, output_mode):
     """Loads a data file into a list of `InputBatch`s."""
 
@@ -767,7 +840,8 @@ def main():
         "cola": "classification",
         "mnli": "classification",
         "mrpc": "classification",
-        "sst-2": "classification",
+        #"sst-2": "classification",
+        "sst-2": "regression",
         "sts-b": "regression",
         "qqp": "classification",
         "qnli": "classification",
@@ -862,7 +936,7 @@ def main():
         train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size)
 
     eval_examples = processor.get_dev_examples(args.data_dir)
-    eval_features = convert_examples_to_features(eval_examples, label_list, args.max_seq_length, tokenizer, output_mode)
+    eval_features = old_convert_examples_to_features(eval_examples, label_list, args.max_seq_length, tokenizer, output_mode)
     eval_data, eval_labels = get_tensor_data(output_mode, eval_features)
     eval_sampler = SequentialSampler(eval_data)
     eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
@@ -941,7 +1015,7 @@ def main():
 
         # Train and evaluate
         global_step = 0
-        best_dev_acc = 0.0
+        best_dev_acc = -1
         output_eval_file = os.path.join(args.output_dir, "eval_results.txt")
 
         print(task_name in default_params, args.num_train_epochs, args.max_seq_length)

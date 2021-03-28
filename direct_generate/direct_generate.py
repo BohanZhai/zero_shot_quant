@@ -248,19 +248,24 @@ def main():
         if args.generate_label:
             get_label = Get_label()
             labeler = Label(tokenizer_sst, TA_model)
-            for batch in range(args.batch_num):
-                string_batch = []
-                for i in range(args.batch_size):
-                    string_batch.append(get_label.get_train_examples(data_dir)[-1])
-                prob_tensor = labeler.string_generate(string_batch)
-                with open('./output_labels.tsv', 'a+') as out_file:
-                    tsv_writer = csv.writer(out_file, delimiter='\t')
-                    for i in range(len(prob_tensor)):
-                        sentence = str(string_batch[i])
-                        # label = str(labels[i].cpu())
-                        prob = str(prob_tensor[i].cpu()[0].item())
-                        # TODO: replace this line
-                        tsv_writer.writerow([sentence, prob])
+            batch = []
+            line_num = args.batch_size
+            for line in get_label.get_train_examples(data_dir):
+                batch.append(line[-1])
+                line_num -= 1
+                if line_num <= 0:
+                    prob_tensor = labeler.string_generate(batch)
+                    line_num = args.batch_size
+                    with open('./output_labels.tsv', 'a+') as out_file:
+                        tsv_writer = csv.writer(out_file, delimiter='\t')
+                        for i in range(len(prob_tensor)):
+                            sentence = str(string_batch[i])
+                            # label = str(labels[i].cpu())
+                            prob = str(prob_tensor[i].cpu()[0].item())
+                            # TODO: replace this line
+                            tsv_writer.writerow([sentence, prob])
+                    line_num = args.batch_size
+                    batch = []
         else:
             generator = Generate(tokenizer_sst, LM_model, args.generation_mode, args.batch_size, args.max_len, 
                                     args.temperature, args.burnin, args.iter_num, args.top_k)

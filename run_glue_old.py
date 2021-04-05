@@ -243,13 +243,12 @@ class Sst2Processor(DataProcessor):
     def get_train_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "new_train.tsv")), "train")
+            self._read_tsv(os.path.join(data_dir, "cola_generated.tsv")), "train")
 
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            # generated evaluation data file
-            self._read_tsv(os.path.join(data_dir, "new_dev.tsv")), "dev")
+            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
 
     def get_aug_examples(self, data_dir, aug_postfix="_aug"):
         return self._create_examples(
@@ -257,8 +256,7 @@ class Sst2Processor(DataProcessor):
 
     def get_labels(self):
         """See base class."""
-        #return ["0", "1"]
-        return [None, None]
+        return ["0", "1"]
 
     def _create_examples(self, lines, set_type):
         """Creates examples for the training and dev sets."""
@@ -465,78 +463,6 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
         if ex_index % 10000 == 0:
             logger.info("Writing example %d of %d" % (ex_index, len(examples)))
 
-        # tokens_a = tokenizer.tokenize(example.text_a)
-
-        # tokens_b = None
-        # if example.text_b:
-        #     tokens_b = tokenizer.tokenize(example.text_b)
-        #     _truncate_seq_pair(tokens_a, tokens_b, max_seq_length - 3)
-        # else:
-        #     if len(tokens_a) > max_seq_length - 2:
-        #         tokens_a = tokens_a[:(max_seq_length - 2)]
-
-        # tokens = ["[CLS]"] + tokens_a + ["[SEP]"]
-        # segment_ids = [0] * len(tokens)
-
-        # if tokens_b:
-        #     tokens += tokens_b + ["[SEP]"]
-        #     segment_ids += [1] * (len(tokens_b) + 1)
-
-        # input_ids = tokenizer.convert_tokens_to_ids(tokens)
-        input_ids = [101]+list(map(int, example.text_a.split(", ")[1:-1]))+[102]
-        segment_ids = [0] * len(input_ids)
-        #print(input_ids)
-        input_mask = [1] * len(input_ids)
-        seq_length = len(input_ids)
-
-        padding = [0] * (max_seq_length - len(input_ids))
-        input_ids += padding
-        input_mask += padding
-        segment_ids += padding
-
-        assert len(input_ids) == max_seq_length
-        assert len(input_mask) == max_seq_length
-        assert len(segment_ids) == max_seq_length
-
-        if output_mode == "classification":
-            label_id = [float(example.label), 1-float(example.label)]
-        elif output_mode == "regression":
-            label_id = float(example.label)
-        else:
-            raise KeyError(output_mode)
-
-        if ex_index < 1:
-            logger.info("*** Example ***")
-            logger.info("guid: %s" % (example.guid))
-            #logger.info("tokens: %s" % " ".join(
-            #    [str(x) for x in tokens]))
-            logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
-            logger.info("input_mask: %s" % " ".join([str(x) for x in input_mask]))
-            logger.info(
-                "segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
-            logger.info("label: {}".format(example.label))
-            logger.info("label_id: {}".format(label_id))
-
-        features.append(
-            InputFeatures(input_ids=input_ids,
-                          input_mask=input_mask,
-                          segment_ids=segment_ids,
-                          label_id=label_id,
-                          seq_length=seq_length))
-    return features
-
-
-def old_convert_examples_to_features(examples, label_list, max_seq_length,
-                                 tokenizer, output_mode):
-    """Loads a data file into a list of `InputBatch`s."""
-
-    label_map = {label: i for i, label in enumerate(label_list)}
-
-    features = []
-    for (ex_index, example) in enumerate(examples):
-        if ex_index % 10000 == 0:
-            logger.info("Writing example %d of %d" % (ex_index, len(examples)))
-
         tokens_a = tokenizer.tokenize(example.text_a)
 
         tokens_b = None
@@ -608,7 +534,7 @@ def _truncate_seq_pair(tokens_a, tokens_b, max_length):
 
 
 def simple_accuracy(preds, labels):
-    return (preds == np.argmax(labels, axis=1)).mean()
+    return (preds == labels).mean()
 
 
 def acc_and_f1(preds, labels):
@@ -659,8 +585,7 @@ def compute_metrics(task_name, preds, labels):
 
 def get_tensor_data(output_mode, features):
     if output_mode == "classification":
-        # all_label_ids = torch.tensor([f.label_id for f in features], dtype=torch.long)
-        all_label_ids = torch.tensor([f.label_id for f in features], dtype=torch.float)
+        all_label_ids = torch.tensor([f.label_id for f in features], dtype=torch.long)
     elif output_mode == "regression":
         all_label_ids = torch.tensor([f.label_id for f in features], dtype=torch.float)
 
@@ -681,12 +606,6 @@ def result_to_file(result, file_name):
             writer.write("%s = %s\n" % (key, str(result[key])))
 
 
-def soft_cross_entropy(predicts, targets):
-    student_likelihood = torch.nn.functional.log_softmax(predicts, dim=-1)
-    # targets_prob = torch.nn.functional.softmax(targets, dim=-1)
-    targets_prob = targets
-    return (- targets_prob * student_likelihood).mean()
-
 def do_eval(model, task_name, eval_dataloader,
             device, output_mode, eval_labels, num_labels):
     eval_loss = 0
@@ -701,11 +620,9 @@ def do_eval(model, task_name, eval_dataloader,
             logits, _, _ = model(input_ids, segment_ids, input_mask)
 
         # create eval loss and other metric required by the task
-        # if output_mode == "classification":
-        #     loss_fct = CrossEntropyLoss()
-        #     tmp_eval_loss = loss_fct(logits.view(-1, num_labels), label_ids.view(-1))
         if output_mode == "classification":
-            tmp_eval_loss = soft_cross_entropy(logits, label_ids)
+            loss_fct = CrossEntropyLoss()
+            tmp_eval_loss = loss_fct(logits.view(-1, num_labels), label_ids.view(-1))
         elif output_mode == "regression":
             loss_fct = MSELoss()
             tmp_eval_loss = loss_fct(logits.view(-1), label_ids.view(-1))
@@ -851,7 +768,6 @@ def main():
         "mnli": "classification",
         "mrpc": "classification",
         "sst-2": "classification",
-        #"sst-2": "regression",
         "sts-b": "regression",
         "qqp": "classification",
         "qnli": "classification",
@@ -940,16 +856,13 @@ def main():
             len(train_examples) / args.train_batch_size / args.gradient_accumulation_steps) * args.num_train_epochs
 
         train_features = convert_examples_to_features(train_examples, label_list,
-                                                       args.max_seq_length, tokenizer, output_mode)
-        # train_features = old_convert_examples_to_features(train_examples, label_list,
-        #                                               args.max_seq_length, tokenizer, output_mode)     
+                                                      args.max_seq_length, tokenizer, output_mode)
         train_data, _ = get_tensor_data(output_mode, train_features)
         train_sampler = RandomSampler(train_data)
         train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size)
 
     eval_examples = processor.get_dev_examples(args.data_dir)
     eval_features = convert_examples_to_features(eval_examples, label_list, args.max_seq_length, tokenizer, output_mode)
-    # eval_features = old_convert_examples_to_features(eval_examples, label_list, args.max_seq_length, tokenizer, output_mode)
     eval_data, eval_labels = get_tensor_data(output_mode, eval_features)
     eval_sampler = SequentialSampler(eval_data)
     eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
@@ -973,6 +886,7 @@ def main():
 
 
     model = QBertForSequenceClassification.from_pretrained(args.model, num_labels=num_labels, quant_config=quant_config)
+    print(model)
     model.to(device)
     if args.do_eval:
         logger.info("***** Running evaluation *****")
@@ -1001,7 +915,7 @@ def main():
 
         logger.info('Total parameters: {}'.format(size))
 
-        no_decay = ['bias', 'LayerNorm.weight']
+        no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
         optimizer_grouped_parameters = [
             {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
              'weight_decay': 0.01},
@@ -1009,27 +923,26 @@ def main():
              'weight_decay': 0.0}
             ]
 
-        optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=1e-8)
-        scheduler = NewWarmupLinearSchedule(optimizer, warmup_steps=int(args.warmup_proportion*num_train_optimization_steps), 
-            t_total=num_train_optimization_steps)
-        # optimizer = BertAdam(
-        #         optimizer_grouped_parameters,
-        #         lr=args.learning_rate,
-        #         warmup=args.warmup_proportion,
-        #         t_total=num_train_optimization_steps)
+        # optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=1e-8)
+        # scheduler = NewWarmupLinearSchedule(optimizer, warmup_steps=int(args.warmup_proportion*num_train_optimization_steps), 
+        #     t_total=num_train_optimization_steps)
+        optimizer = BertAdam(
+                optimizer_grouped_parameters,
+                lr=args.learning_rate,
+                warmup=args.warmup_proportion,
+                t_total=num_train_optimization_steps)
 
         # Prepare loss functions
         loss_mse = MSELoss()
 
         def soft_cross_entropy(predicts, targets):
             student_likelihood = torch.nn.functional.log_softmax(predicts, dim=-1)
-            # targets_prob = torch.nn.functional.softmax(targets, dim=-1)
-            targets_prob = targets
+            targets_prob = torch.nn.functional.softmax(targets, dim=-1)
             return (- targets_prob * student_likelihood).mean()
 
         # Train and evaluate
         global_step = 0
-        best_dev_acc = -1
+        best_dev_acc = 0.0
         output_eval_file = os.path.join(args.output_dir, "eval_results.txt")
 
         print(task_name in default_params, args.num_train_epochs, args.max_seq_length)
@@ -1057,13 +970,9 @@ def main():
                 student_logits, student_atts, student_reps = model(input_ids, segment_ids, input_mask,
                                                                            is_student=True)
 
-                # if output_mode == "classification":
-                #     loss_fct = CrossEntropyLoss()
-                #     cls_loss = loss_fct(student_logits.view(-1, num_labels), label_ids.view(-1))
-
                 if output_mode == "classification":
-                    # loss_fct = CrossEntropyLoss()
-                    cls_loss = soft_cross_entropy(student_logits, label_ids)
+                    loss_fct = CrossEntropyLoss()
+                    cls_loss = loss_fct(student_logits.view(-1, num_labels), label_ids.view(-1))
 
                 elif output_mode == "regression":
                     loss_mse = MSELoss()
@@ -1085,7 +994,7 @@ def main():
 
                 if (step + 1) % args.gradient_accumulation_steps == 0:
                     optimizer.step()
-                    scheduler.step()
+                    # scheduler.step()
                     model.zero_grad()
                     global_step += 1
 

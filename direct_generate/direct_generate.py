@@ -202,7 +202,7 @@ def main():
                         help="Max sequence length to generate")
     parser.add_argument("--iter_num", default=100, type=int, 
                         help="Iteration of repeating masking for each sentence")
-    parser.add_argument("--batch_num", default=10, type=int, 
+    parser.add_argument("--batch_num", default=87, type=int, 
                         help="How many batches to generate")
     parser.add_argument("--batch_size", default=100, type=int,
                         help="How many sentence to generate for one batch")
@@ -227,12 +227,14 @@ def main():
     # TO DO: set fine-tuned model for now, later take from args.model
     pretrained_bert_model_gen = f"/rscratch/bohan/ZQBert/zero-shot-qbert/Berts/gen_base_l12/"
     pretrained_bert_model_sst = f"/rscratch/bohan/ZQBert/zero-shot-qbert/Berts/sst_base_l12/"
+    pretrained_bert_model_sst_lm = f"/rscratch/bohan/ZQBert/zero-shot-qbert/direct_generate/fine-tuned/"
     data_dir = f"/rscratch/bohan/ZQBert/GLUE-baselines/glue_data/SST-2"
 
     # Prepare two models for generation and labeling
     tokenizer_gen = BertTokenizer.from_pretrained(pretrained_bert_model_gen)
     tokenizer_sst = BertTokenizer.from_pretrained(pretrained_bert_model_sst)
-    LM_model = BertForMaskedLM.from_pretrained(pretrained_bert_model_sst)
+    tokenizer_sst_lm = BertTokenizer.from_pretrained(pretrained_bert_model_sst_lm)
+    LM_model = BertForMaskedLM.from_pretrained(pretrained_bert_model_sst_lm)
     LM_model.eval()
     LM_model.to(device)
 

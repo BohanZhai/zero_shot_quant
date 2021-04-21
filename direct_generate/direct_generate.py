@@ -188,10 +188,14 @@ class Get_label(object):
 def main():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--model", default=None, type=str, 
+    parser.add_argument("--LM_model", default=None, type=str, 
+                        help="Fine-tuned Bert with LM model is under is folder")
+    parser.add_argument("--TA_model", default=None, type=str, 
                         help="Fine-tuned Bert model is under is folder")
     parser.add_argument("--output_dir", default=None, type=str, 
                         help="Generated output file will be placed under this folder")
+    parser.add_argument("--file_name", default=None, type=str, 
+                        help="Generated output file will be named according to this")
     parser.add_argument("--generation_mode", default="parallel-sequential", type=str, 
                         help="Mode of generating sentence")
     parser.add_argument("--generate_label", default=False, type=bool,
@@ -224,21 +228,15 @@ def main():
     if n_gpu > 0:
         torch.cuda.manual_seed_all(args.seed)
 
-    # TO DO: set fine-tuned model for now, later take from args.model
-    pretrained_bert_model_gen = f"/rscratch/bohan/ZQBert/zero-shot-qbert/Berts/gen_base_l12/"
-    pretrained_bert_model_sst = f"/rscratch/bohan/ZQBert/zero-shot-qbert/Berts/sst_base_l12/"
-    pretrained_bert_model_sst_lm = f"/rscratch/bohan/ZQBert/zero-shot-qbert/direct_generate/fine-tuned/"
     data_dir = f"/rscratch/bohan/ZQBert/GLUE-baselines/glue_data/SST-2"
 
     # Prepare two models for generation and labeling
-    tokenizer_gen = BertTokenizer.from_pretrained(pretrained_bert_model_gen)
-    tokenizer_sst = BertTokenizer.from_pretrained(pretrained_bert_model_sst)
-    tokenizer_sst_lm = BertTokenizer.from_pretrained(pretrained_bert_model_sst_lm)
-    LM_model = BertForMaskedLM.from_pretrained(pretrained_bert_model_sst_lm)
+    tokenizer = BertTokenizer.from_pretrained(args.LM_model)
+    LM_model = BertForMaskedLM.from_pretrained(args.LM_model)
     LM_model.eval()
     LM_model.to(device)
 
-    TA_model = BertForSequenceClassification.from_pretrained(pretrained_bert_model_sst)
+    TA_model = BertForSequenceClassification.from_pretrained(args.TA_model)
     TA_model.eval()
     TA_model.to(device)
 
@@ -249,7 +247,7 @@ def main():
     with torch.no_grad():
         if args.generate_label:
             get_label = Get_label()
-            labeler = Label(tokenizer_sst, TA_model)
+            labeler = Label(tokenizer, TA_model)
             batch = []
             line_num = args.batch_size
             for line in get_label.get_train_examples(data_dir):
@@ -258,20 +256,19 @@ def main():
                 if line_num <= 0:
                     prob_tensor = labeler.string_generate(batch)
                     line_num = args.batch_size
-                    with open('./output_labels.tsv', 'a+') as out_file:
+                    with open('./'+args.output_dir+args.file_name+'.tsv', 'a+') as out_file:
                         tsv_writer = csv.writer(out_file, delimiter='\t')
                         for i in range(len(prob_tensor)):
                             sentence = str(string_batch[i])
-                            # label = str(labels[i].cpu())
                             prob = str(prob_tensor[i].cpu()[0].item())
                             # TODO: replace this line
                             tsv_writer.writerow([sentence, prob])
                     line_num = args.batch_size
                     batch = []
         else:
-            generator = Generate(tokenizer_sst, LM_model, args.generation_mode, args.batch_size, args.max_len, 
+            generator = Generate(tokenizer, LM_model, args.generation_mode, args.batch_size, args.max_len, 
                                     args.temperature, args.burnin, args.iter_num, args.top_k)
-            labeler = Label(tokenizer_sst, TA_model)
+            labeler = Label(tokenizer, TA_model)
 
             for batch in range(args.batch_num):
                 #sentence_batch = generator.generate()
@@ -284,7 +281,7 @@ def main():
                 # new_label = labeler.generate(t)
 
 
-                with open('./output_labels.tsv', 'a+') as out_file:
+                with open('./'+args.output_dir+args.file_name+'.tsv', 'a+') as out_file:
                     tsv_writer = csv.writer(out_file, delimiter='\t')
                     for i in range(len(prob_tensor)):
                         sentence = str(sentence_batch[i])
@@ -294,7 +291,7 @@ def main():
                         tsv_writer.writerow([sentence, prob])
 
 
-            logger.info("Having been generating {} batches".format(str(batch+1)))
+                logger.info("Having been generating {} batches".format(str(batch+1)))
 
 
 if __name__ == "__main__":

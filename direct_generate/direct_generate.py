@@ -13,6 +13,7 @@ import numpy as np
 
 from transformers import BertTokenizer
 from transformer.modeling import BertForMaskedLM, BertForSequenceClassification
+# from tinybert_aug import * 
 
 sys.path.append("..")
 
@@ -25,7 +26,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class Generate(object):
-    def __init__(self, tokenizer, LM_model, generation_mode, batch_size, max_len, temperature, burnin, iter_num, top_k):
+    def __init__(self, tokenizer, LM_model, generation_mode, batch_size, max_len, temperature, burnin, iter_num, top_k, task):
         self.tokenizer = tokenizer
         self.model = LM_model
         self.generation_mode = generation_mode
@@ -35,6 +36,7 @@ class Generate(object):
         self.burnin = burnin
         self.iter_num = iter_num
         self.top_k = top_k
+        self.task = task
 
         self.CLS = '[CLS]'
         self.SEP = '[SEP]'
@@ -75,15 +77,20 @@ class Generate(object):
             idx = torch.argmax(logits, dim=-1)
         return idx.tolist() if self.batch_size!=1 else idx
   
-    def get_init_text(self, length):
+    def get_init_text(self, length, task):
         """ Get initial sentence by padding masks"""
         # batch = [[self.CLS] + [self.MASK] * length + [self.SEP] for _ in range(self.batch_size)]
-        batch = [[self.cls_id] + [np.random.randint(1000, 30522) for _ in range(length)] + [self.sep_id] for _ in range(self.batch_size)]
+        if task == 'sst':
+            batch = [[self.cls_id] + [np.random.randint(1000, 30522) for _ in range(length)] + [self.sep_id] for _ in range(self.batch_size)]
+        elif task == 'mrpc' or task == 'rte' or task == 'qnli' or task == 'mnli':
+            batch = [[self.cls_id] + [np.random.randint(1000, 30522) for _ in range(length)] + [self.sep_id] \
+            + [np.random.randint(1000, 30522) for _ in range(length)] + [self.sep_id] for _ in range(self.batch_size)]
+        else:
+            raise NotImplementedError()
         return batch
 
     def generate(self):
-        length = np.random.randint(1, self.max_len+1)
-
+        length = np.random.randint(2, self.max_len+1)
         if self.generation_mode == "parallel-sequential":
             sentences = self.parallel_sequential_generation(length)
 
@@ -104,22 +111,37 @@ class Generate(object):
 
         return sentences
 
-    def parallel_sequential_generation(self, length):
+    def parallel_sequential_generation(self, length, previous_batch=None, iter_num=None, batch_size=None):
         """ Generate for one random position at a timestep"""
-        batch = self.get_init_text(length)
-        
-        for i in range(self.iter_num):
+        if previous_batch:
+            batch = previous_batch
+        else:
+            batch = self.get_init_text(length, task=self.task)
+
+        if not iter_num:
+            iter_num = self.iter_num
+
+        if not batch_size:
+            batch_size = self.batch_size
+
+        for i in range(iter_num):
             position = np.random.randint(0, length)
-            for j in range(self.batch_size):
-                batch[j][position+1] = self.mask_id
+            for j in range(batch_size):
+                if (batch[j][position+1] != self.sep_id) and (batch[j][position+1] != self.cls_id):
+                    batch[j][position+1] = self.mask_id
+
             inp = torch.tensor(batch).to(device)
             out = self.model(inp)
             topk = self.top_k if (i >= self.burnin) else 0
             idxs = self.generate_step(out, gen_idx=position+1, top_k=topk, sample=(i < self.burnin))
-            for j in range(self.batch_size):
-                batch[j][position+1] = idxs[j]
+            for j in range(batch_size):
+                if isinstance(idxs, int):
+                    batch[0][position+1] = idxs
+                else:
+                    batch[j][position+1] = idxs[j]
 
         return batch
+
 
     def parallel_generation(seed_text, batch_size=10, max_len=15, top_k=0, temperature=None, max_iter=300, sample=True):
         """ Generate for all positions at each time step """
@@ -144,9 +166,10 @@ class Generate(object):
         return new_batch
 
 class Label(object):
-    def __init__(self, tokenizer, TA_model):
+    def __init__(self, tokenizer, TA_model, task='sst'):
         self.tokenizer = tokenizer
         self.model = TA_model
+        self.task = task
 
     def generate(self, string_batch):   
         """ Given a list of sentences, call TA_model to generate labels """
@@ -155,7 +178,7 @@ class Label(object):
         logits = self.model(inputs)
         # logits = self.model(string_batch)
         prob = torch.nn.functional.softmax(logits, dim=-1)
-        outputs = prob.argmax(dim=-1)
+        # outputs = prob.argmax(dim=-1)
         return prob
 
     def string_generate(self, string_batch):   
@@ -169,7 +192,6 @@ class Label(object):
         return outputs
 
 class Get_label(object):
-
     def _read_tsv(cls, input_file, quotechar=None):
         """Reads a tab separated value file."""
         with open(input_file, "r", encoding="utf-8") as f:
@@ -210,6 +232,8 @@ def main():
                         help="How many batches to generate")
     parser.add_argument("--batch_size", default=100, type=int,
                         help="How many sentence to generate for one batch")
+    parser.add_argument("--random", default=False, type=bool,
+                        help="Whether to randomly generate data")
     parser.add_argument("--top_k", default=100, type=int,
                         help="Choose from top k words instead of full distribution")
     parser.add_argument("--temperature", default=1.0, type=float)
@@ -217,6 +241,8 @@ def main():
                         help="For non-sequential generation, for the first burnin steps, sample from the entire next word distribution, instead of top_k")
     parser.add_argument("--seed", default=1, type=int,
                         help="Random seed to reproduce results")
+    parser.add_argument("--task", default='mrpc', type=str, 
+                        help="Input tasks in cola, mnli, qnli, qqp, sts-b, rte, sst-2, wnli, mrpc")
 
 
     args = parser.parse_args()
@@ -228,7 +254,7 @@ def main():
     if n_gpu > 0:
         torch.cuda.manual_seed_all(args.seed)
 
-    data_dir = f"/rscratch/bohan/ZQBert/GLUE-baselines/glue_data/SST-2"
+    # data_dir = f"/rscratch/bohan/ZQBert/GLUE-baselines/glue_data/SST-2"
 
     # Prepare two models for generation and labeling
     tokenizer = BertTokenizer.from_pretrained(args.LM_model)
@@ -267,19 +293,27 @@ def main():
                     batch = []
         else:
             generator = Generate(tokenizer, LM_model, args.generation_mode, args.batch_size, args.max_len, 
-                                    args.temperature, args.burnin, args.iter_num, args.top_k)
+                                    args.temperature, args.burnin, args.iter_num, args.top_k, args.task)
             labeler = Label(tokenizer, TA_model)
 
             for batch in range(args.batch_num):
                 #sentence_batch = generator.generate()
                 length = np.random.randint(1, args.max_len+1)
-                sentence_batch = generator.get_init_text(length)
+                if args.random:
+                    sentence_batch = generator.get_init_text(length, args.task)
+                else:
+                    sentence_batch = generator.generate()
 
+
+                if args.task == 'mrpc' or args.task == 'rte' or args.task == 'qnli' or args.task == 'mnli':
+                    for i in range(args.batch_size):
+                        if np.random.rand() >= 0.5:
+                            split_index = sentence_batch[i].index(102)+1
+                            sentence_a = sentence_batch[i][:split_index]
+                            sentence_batch[i] = sentence_a + sentence_a[1:]
+                            sentence_batch[i] = generator.parallel_sequential_generation(len(sentence_batch[i])-1, previous_batch=[sentence_batch[i]], iter_num=5, batch_size=1)[0]
+                        
                 prob_tensor = labeler.generate(sentence_batch)
-                # s = "are more deeply thought through than in most ` right-thinking ' films"
-                # t = torch.unsqueeze(torch.tensor(tokenizer.encode(s)), 0).to(device)
-                # new_label = labeler.generate(t)
-
 
                 with open('./'+args.output_dir+args.file_name+'.tsv', 'a+') as out_file:
                     tsv_writer = csv.writer(out_file, delimiter='\t')
@@ -287,8 +321,18 @@ def main():
                         sentence = str(sentence_batch[i])
                         # label = str(labels[i].cpu())
                         prob = str(prob_tensor[i].cpu()[0].item())
-                        # TODO: replace this line
-                        tsv_writer.writerow([sentence, prob])
+                        probs = str((prob_tensor[i].cpu()[0].item(), \
+                        prob_tensor[i].cpu()[1].item(), prob_tensor[i].cpu()[2].item()))
+
+                        if args.task == 'sst':
+                            tsv_writer.writerow([sentence, prob])
+                        elif args.task == 'mrpc':
+                            tsv_writer.writerow([prob, 0, 0, sentence])
+                        elif args.task == 'rte' or args.task == 'qnli':
+                            tsv_writer.writerow([i, sentence, prob])
+                        elif artg.task == 'mnli':
+                            tsv_writer.writerow([i, sentence, probs])
+                        
 
 
                 logger.info("Having been generating {} batches".format(str(batch+1)))

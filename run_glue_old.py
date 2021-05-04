@@ -243,7 +243,7 @@ class Sst2Processor(DataProcessor):
     def get_train_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "cola_generated.tsv")), "train")
+            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
 
     def get_dev_examples(self, data_dir):
         """See base class."""
@@ -886,7 +886,6 @@ def main():
 
 
     model = QBertForSequenceClassification.from_pretrained(args.model, num_labels=num_labels, quant_config=quant_config)
-    print(model)
     model.to(device)
     if args.do_eval:
         logger.info("***** Running evaluation *****")
@@ -944,8 +943,6 @@ def main():
         global_step = 0
         best_dev_acc = 0.0
         output_eval_file = os.path.join(args.output_dir, "eval_results.txt")
-
-        print(task_name in default_params, args.num_train_epochs, args.max_seq_length)
 
         for epoch_ in trange(int(args.num_train_epochs), desc="Epoch"):
             tr_loss = 0.

@@ -124,15 +124,15 @@ class DataProcessor(object):
 class MrpcProcessor(DataProcessor):
     """Processor for the MRPC data set (GLUE version)."""
 
-    def get_train_examples(self, data_dir):
+    def get_train_examples(self, data_dir, name):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+            self._read_tsv(os.path.join(data_dir, name+".tsv")), "train")
 
-    def get_dev_examples(self, data_dir):
+    def get_dev_examples(self, data_dir, name):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+            self._read_tsv(os.path.join(data_dir, name+".tsv")), "dev")
 
     def get_aug_examples(self, data_dir, aug_postfix="_aug"):
         return self._create_examples(
@@ -140,7 +140,8 @@ class MrpcProcessor(DataProcessor):
 
     def get_labels(self):
         """See base class."""
-        return ["0", "1"]
+        return [None, None]
+        # return ["0", "1"]
 
     def _create_examples(self, lines, set_type):
         """Creates examples for the training and dev sets."""
@@ -150,25 +151,25 @@ class MrpcProcessor(DataProcessor):
                 continue
             guid = "%s-%s" % (set_type, i)
             text_a = line[3]
-            text_b = line[4]
+            # text_b = line[4]
             label = line[0]
             examples.append(
-                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+                InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
         return examples
 
 
 class MnliProcessor(DataProcessor):
     """Processor for the MultiNLI data set (GLUE version)."""
 
-    def get_train_examples(self, data_dir):
+    def get_train_examples(self, data_dir, name):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+            self._read_tsv(os.path.join(data_dir, name+".tsv")), "train")
 
-    def get_dev_examples(self, data_dir):
+    def get_dev_examples(self, data_dir, name):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev_matched.tsv")),
+            self._read_tsv(os.path.join(data_dir, name+".tsv")),
             "dev_matched")
 
     def get_aug_examples(self, data_dir, aug_postfix="_aug"):
@@ -177,7 +178,8 @@ class MnliProcessor(DataProcessor):
 
     def get_labels(self):
         """See base class."""
-        return ["contradiction", "entailment", "neutral"]
+        # return ["contradiction", "entailment", "neutral"]
+        return [None, None, None]
 
     def _create_examples(self, lines, set_type):
         """Creates examples for the training and dev sets."""
@@ -186,11 +188,11 @@ class MnliProcessor(DataProcessor):
             if i == 0:
                 continue
             guid = "%s-%s" % (set_type, line[0])
-            text_a = line[8]
-            text_b = line[9]
+            text_a = line[1]
+            # text_b = line[9]
             label = line[-1]
             examples.append(
-                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+                InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
         return examples
 
 
@@ -240,16 +242,16 @@ class ColaProcessor(DataProcessor):
 class Sst2Processor(DataProcessor):
     """Processor for the SST-2 data set (GLUE version)."""
 
-    def get_train_examples(self, data_dir):
+    def get_train_examples(self, data_dir, name):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "new_train.tsv")), "train")
+            self._read_tsv(os.path.join(data_dir, name+".tsv")), "train")
 
-    def get_dev_examples(self, data_dir):
+    def get_dev_examples(self, data_dir, name):
         """See base class."""
         return self._create_examples(
             # generated evaluation data file
-            self._read_tsv(os.path.join(data_dir, "new_dev.tsv")), "dev")
+            self._read_tsv(os.path.join(data_dir, name+".tsv")), "dev")
 
     def get_aug_examples(self, data_dir, aug_postfix="_aug"):
         return self._create_examples(
@@ -352,15 +354,15 @@ class QqpProcessor(DataProcessor):
 class QnliProcessor(DataProcessor):
     """Processor for the STS-B data set (GLUE version)."""
 
-    def get_train_examples(self, data_dir):
+    def get_train_examples(self, data_dir, name):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+            self._read_tsv(os.path.join(data_dir, name+".tsv")), "train")
 
-    def get_dev_examples(self, data_dir):
+    def get_dev_examples(self, data_dir, name):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev.tsv")),
+            self._read_tsv(os.path.join(data_dir, name+".tsv")),
             "dev_matched")
 
     def get_aug_examples(self, data_dir, aug_postfix="_aug"):
@@ -379,25 +381,24 @@ class QnliProcessor(DataProcessor):
                 continue
             guid = "%s-%s" % (set_type, line[0])
             text_a = line[1]
-            text_b = line[2]
             label = line[-1]
             examples.append(
-                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+                InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
         return examples
 
 
 class RteProcessor(DataProcessor):
     """Processor for the RTE data set (GLUE version)."""
 
-    def get_train_examples(self, data_dir):
+    def get_train_examples(self, data_dir, name):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+            self._read_tsv(os.path.join(data_dir, name+".tsv")), "train")
 
-    def get_dev_examples(self, data_dir):
+    def get_dev_examples(self, data_dir, name):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+            self._read_tsv(os.path.join(data_dir, name+".tsv")), "dev")
 
     def get_aug_examples(self, data_dir, aug_postfix="_aug"):
         return self._create_examples(
@@ -415,10 +416,9 @@ class RteProcessor(DataProcessor):
                 continue
             guid = "%s-%s" % (set_type, line[0])
             text_a = line[1]
-            text_b = line[2]
             label = line[-1]
             examples.append(
-                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+                InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
         return examples
 
 
@@ -499,7 +499,10 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
         assert len(segment_ids) == max_seq_length
 
         if output_mode == "classification":
-            label_id = [float(example.label), 1-float(example.label)]
+            if isinstance(eval(example.label), tuple):
+                label_id = [float(eval(example.label)[0]), float(eval(example.label)[1]), float(eval(example.label)[2])]
+            else:
+                label_id = [float(example.label), 1-float(example.label)]
         elif output_mode == "regression":
             label_id = float(example.label)
         else:
@@ -638,7 +641,7 @@ def compute_metrics(task_name, preds, labels):
     elif task_name == "sst-2":
         return {"acc": simple_accuracy(preds, labels)}
     elif task_name == "mrpc":
-        return acc_and_f1(preds, labels)
+        return {"acc": simple_accuracy(preds, labels)}
     elif task_name == "sts-b":
         return pearson_and_spearman(preds, labels)
     elif task_name == "qqp":
@@ -829,6 +832,13 @@ def main():
     parser.add_argument('--temperature',
                         type=float,
                         default=1.)
+    parser.add_argument('--train_name',
+                        type=str,
+                        default="")
+    parser.add_argument('--val_name',
+                        type=str,
+                        default="")
+    
 
     args = parser.parse_args()
     logger.info('The args: {}'.format(args))
@@ -927,7 +937,7 @@ def main():
 
     if not args.do_eval:
         if args.aug_train == 'none':
-            train_examples = processor.get_train_examples(args.data_dir)
+            train_examples = processor.get_train_examples(args.data_dir, args.train_name)
         else:
             train_examples = processor.get_aug_examples(args.data_dir, args.aug_train)
         if args.gradient_accumulation_steps < 1:
@@ -947,7 +957,7 @@ def main():
         train_sampler = RandomSampler(train_data)
         train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size)
 
-    eval_examples = processor.get_dev_examples(args.data_dir)
+    eval_examples = processor.get_dev_examples(args.data_dir, args.val_name)
     eval_features = convert_examples_to_features(eval_examples, label_list, args.max_seq_length, tokenizer, output_mode)
     # eval_features = old_convert_examples_to_features(eval_examples, label_list, args.max_seq_length, tokenizer, output_mode)
     eval_data, eval_labels = get_tensor_data(output_mode, eval_features)
@@ -1063,6 +1073,7 @@ def main():
 
                 if output_mode == "classification":
                     # loss_fct = CrossEntropyLoss()
+                    print('loss shape :', student_logits.shape, label_ids.shape)
                     cls_loss = soft_cross_entropy(student_logits, label_ids)
 
                 elif output_mode == "regression":
@@ -1114,7 +1125,7 @@ def main():
 
             result_to_file(result, output_eval_file)
 
-            save_model = False
+            save_model = True
 
             if task_name in acc_tasks and result['acc'] > best_dev_acc:
                 best_dev_acc = result['acc']

@@ -747,12 +747,19 @@ class BertPreTrainedModel(nn.Module):
         for old_key, new_key in zip(old_keys, new_keys):
             state_dict[new_key] = state_dict.pop(old_key)
 
+        # remove x_max, x_min due to inconsistence in version
+        keys_w_minmax = list(state_dict.keys()).copy()
+        for key in keys_w_minmax:
+            if 'x_min' in key or 'x_max' in key:
+                del state_dict[key]
+
         missing_keys = []
         unexpected_keys = []
         error_msgs = []
         # copy state_dict so _load_from_state_dict can modify it
         metadata = getattr(state_dict, '_metadata', None)
         state_dict = state_dict.copy()
+
         if metadata is not None:
             state_dict._metadata = metadata
 
@@ -768,6 +775,7 @@ class BertPreTrainedModel(nn.Module):
         start_prefix = ''
         if not hasattr(model, 'bert') and any(s.startswith('bert.') for s in state_dict.keys()):
             start_prefix = 'bert.'
+
 
         logger.info('loading model...')
         load(model, prefix=start_prefix)
@@ -1206,9 +1214,9 @@ class QBertForSequenceClassification(BertPreTrainedModel):
 
         sequence_output, att_output, pooled_output = self.bert(input_ids, token_type_ids, attention_mask,
                                                                output_all_encoded_layers=True, output_att=True)
-        pooled_output = self.dropout(pooled_output) # add just to see difference between v0
-        # logits = self.classifier(torch.relu(pooled_output))
-        logits = self.classifier(pooled_output)
+        # pooled_output = self.dropout(pooled_output) # add just to see difference between v0
+        logits = self.classifier(torch.relu(pooled_output))
+        # logits = self.classifier(pooled_output)
 
         tmp = []
         if is_student:

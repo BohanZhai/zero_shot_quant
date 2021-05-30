@@ -12,7 +12,7 @@ import os
 import numpy as np
 
 from transformers import BertTokenizer
-from transformer.modeling import BertForMaskedLM, BertForSequenceClassification
+from transformers import BertForMaskedLM, BertForSequenceClassification
 # from tinybert_aug import * 
 
 sys.path.append("..")
@@ -131,7 +131,7 @@ class Generate(object):
                     batch[j][position+1] = self.mask_id
 
             inp = torch.tensor(batch).to(device)
-            out = self.model(inp)
+            out = self.model(inp)['logits']
             topk = self.top_k if (i >= self.burnin) else 0
             idxs = self.generate_step(out, gen_idx=position+1, top_k=topk, sample=(i < self.burnin))
             for j in range(batch_size):
@@ -175,7 +175,7 @@ class Label(object):
         """ Given a list of sentences, call TA_model to generate labels """
         # inputs = self.tokenizer(string_batch, padding = True)
         inputs = torch.LongTensor(string_batch).cuda()
-        logits = self.model(inputs)
+        logits = self.model(inputs)['logits']
         # logits = self.model(string_batch)
         prob = torch.nn.functional.softmax(logits, dim=-1)
         # outputs = prob.argmax(dim=-1)
@@ -184,12 +184,14 @@ class Label(object):
     def string_generate(self, string_batch):   
         """ Given a list of sentences, call TA_model to generate labels """
         inputs = self.tokenizer(string_batch, padding = True)
-        inputs = torch.LongTensor(inputs).cuda()
+        inputs = torch.LongTensor(inputs['input_ids']).cuda()
         logits = self.model(inputs)
         # logits = self.model(string_batch)
-        prob = torch.nn.functional.softmax(logits, dim=-1)
-        outputs = prob.argmax(dim=-1)
-        return outputs
+        prob = torch.nn.functional.softmax(logits['logits'], dim=-1)
+        # outputs = prob.argmax(dim=-1)
+        return prob, inputs.tolist()
+
+
 
 class Get_label(object):
     def _read_tsv(cls, input_file, quotechar=None):
@@ -254,7 +256,7 @@ def main():
     if n_gpu > 0:
         torch.cuda.manual_seed_all(args.seed)
 
-    # data_dir = f"/rscratch/bohan/ZQBert/GLUE-baselines/glue_data/SST-2"
+    data_dir = f"/rscratch/bohan/ZQBert/GLUE-baselines/glue_data/RTE"
 
     # Prepare two models for generation and labeling
     tokenizer = BertTokenizer.from_pretrained(args.LM_model)
@@ -277,18 +279,32 @@ def main():
             batch = []
             line_num = args.batch_size
             for line in get_label.get_train_examples(data_dir):
-                batch.append(line[-1])
+                if args.task == 'sst':
+                    batch.append(line[-1])
+                elif args.task == 'mnli':
+                    batch.append(line[1] + line[2])
+                elif args.task == 'rte':
+                    batch.append(line[8] + line[9])
                 line_num -= 1
                 if line_num <= 0:
-                    prob_tensor = labeler.string_generate(batch)
+                    prob_tensor, sentences = labeler.string_generate(batch)
                     line_num = args.batch_size
                     with open('./'+args.output_dir+args.file_name+'.tsv', 'a+') as out_file:
                         tsv_writer = csv.writer(out_file, delimiter='\t')
                         for i in range(len(prob_tensor)):
-                            sentence = str(string_batch[i])
+                            sentence = str(sentences[i])
                             prob = str(prob_tensor[i].cpu()[0].item())
+
+                            probs = [prob_tensor[i].cpu()[j].item() for j in range(len(prob_tensor[i].cpu()))]
+                            probs = tuple(probs)
+                            probs = str(probs)
                             # TODO: replace this line
-                            tsv_writer.writerow([sentence, prob])
+                            if args.task == 'rte':
+                                tsv_writer.writerow([i, sentence, prob])
+                            elif args.task == 'mnli':
+                                tsv_writer.writerow([i, sentence, probs])
+                            else:
+                                tsv_writer.writerow([sentence, prob])
                     line_num = args.batch_size
                     batch = []
         else:
@@ -305,13 +321,30 @@ def main():
                     sentence_batch = generator.generate()
 
 
-                if args.task == 'mrpc' or args.task == 'rte' or args.task == 'qnli' or args.task == 'mnli':
+                if args.task == 'mrpc' or args.task == 'rte' or args.task == 'qnli':
                     for i in range(args.batch_size):
                         if np.random.rand() >= 0.5:
                             split_index = sentence_batch[i].index(102)+1
                             sentence_a = sentence_batch[i][:split_index]
                             sentence_batch[i] = sentence_a + sentence_a[1:]
                             sentence_batch[i] = generator.parallel_sequential_generation(len(sentence_batch[i])-1, previous_batch=[sentence_batch[i]], iter_num=5, batch_size=1)[0]
+                elif args.task == 'mnli':
+                    for i in range(args.batch_size):
+                        prob = np.random.rand()
+                        if prob < 0.33:
+                            split_index = sentence_batch[i].index(102)+1
+                            sentence_a = sentence_batch[i][:split_index]
+                            sentence_batch[i] = sentence_a + sentence_a[1:]
+                            sentence_batch[i] = generator.parallel_sequential_generation(len(sentence_batch[i])-1, previous_batch=[sentence_batch[i]], iter_num=5, batch_size=1)[0]
+                        elif 0.33 <= prob < 0.66:
+                            split_index = sentence_batch[i].index(102)+1
+                            sentence_a = sentence_batch[i][:split_index]
+                            random_position = min(max(1, int(np.random.normal(len(sentence_a)//2))), len(sentence_a)-1)
+                            temp = sentence_a + sentence_a[1:random_position] + [102]
+                            num_pad = len(sentence_a)*2-1 - len(temp)
+                            temp += [0] * num_pad
+                            sentence_batch[i] = temp
+
                         
                 prob_tensor = labeler.generate(sentence_batch)
 
@@ -321,8 +354,13 @@ def main():
                         sentence = str(sentence_batch[i])
                         # label = str(labels[i].cpu())
                         prob = str(prob_tensor[i].cpu()[0].item())
-                        probs = str((prob_tensor[i].cpu()[0].item(), \
-                        prob_tensor[i].cpu()[1].item(), prob_tensor[i].cpu()[2].item()))
+                        
+                        # print('probs')
+                        probs = [prob_tensor[i].cpu()[j].item() for j in range(len(prob_tensor[i].cpu()))]
+                        probs = tuple(probs)
+                        probs = str(probs)
+                        # probs = str((prob_tensor[i].cpu().item()[0], \
+                        # prob_tensor[i].cpu().item()[1], prob_tensor[i].cpu().item()[2]))
 
                         if args.task == 'sst':
                             tsv_writer.writerow([sentence, prob])
@@ -330,7 +368,7 @@ def main():
                             tsv_writer.writerow([prob, 0, 0, sentence])
                         elif args.task == 'rte' or args.task == 'qnli':
                             tsv_writer.writerow([i, sentence, prob])
-                        elif artg.task == 'mnli':
+                        elif args.task == 'mnli':
                             tsv_writer.writerow([i, sentence, probs])
                         
 

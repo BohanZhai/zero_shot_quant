@@ -95,3 +95,18 @@ python run_glue_old.py --task_name MNLI \
 --model Berts/mnli_base_l12/ \
 --output_dir results/mnli_w_data
 ```
+
+
+## Generate Cross Domain Dataset
+
+
+
+```bash
+python direct_generate.py --LM_model Berts_LM/sst_1ep/ \
+--TA_model ../Berts/mnli_base_l12/ \
+--output_dir gen_data/mnli/ \
+--file_name mnli_model_rte_data \
+--batch_num 24 \
+--batch_size 100 \
+--generate_label True
+```
